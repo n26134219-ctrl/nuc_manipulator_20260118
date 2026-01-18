@@ -1,0 +1,15 @@
+# 1. 回到 Workspace 根目錄
+cd /home/aiRobots/Software
+
+# 2. 載入環境變數 (這步讓系統知道你的 robot_core 在哪)
+source devel/setup.bash
+
+# 3. 使用 rosrun 執行 (推薦)
+# 格式: rosrun [Package名稱] [執行檔名稱]
+# 因為你的 ProjectNode 是在最外層定義的，它通常會歸屬於 "Project" 這個 package (看你最外層 CMakeLists 的 project 名稱)
+rosrun Project ProjectNode
+
+
+source devel/setup.bash
+rosservice list
+# 如果你看到列表裡面出現： /batch_transform

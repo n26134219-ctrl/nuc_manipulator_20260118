@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="單手URDF_第二張圖_第二版20250922.SLDASM">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-5.06615278728084E-07 -6.93889390390723E-18 0.0604792465469802"
+        rpy="0 0 0" />
+      <mass
+        value="0.334381068135171" />
+      <inertia
+        ixx="0.000492338774047955"
+        ixy="-4.09431995678538E-21"
+        ixz="2.26166332213311E-09"
+        iyy="0.000492549348111621"
+        iyz="1.52017292960927E-20"
+        izz="0.000148045787365271" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="link2">
+    <inertial>
+      <origin
+        xyz="7.44131145591354E-11 -6.57030894750561E-06 -0.000865093764295652"
+        rpy="0 0 0" />
+      <mass
+        value="0.363631823151922" />
+      <inertia
+        ixx="0.000502441329650863"
+        ixy="-2.38708038710647E-14"
+        ixz="-3.3802825121625E-11"
+        iyy="0.000165412153636069"
+        iyz="2.26679776565871E-09"
+        izz="0.000507252349423078" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint2"
+    type="continuous">
+    <origin
+      xyz="0 0 0.159"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="link2" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="link3">
+    <inertial>
+      <origin
+        xyz="0.215643502935897 -0.00545561504343536 0.00090164605158068"
+        rpy="0 0 0" />
+      <mass
+        value="0.453661925541927" />
+      <inertia
+        ixx="0.000510328001340653"
+        ixy="2.09881445468793E-05"
+        ixz="-3.75094052915577E-07"
+        iyy="0.00062761041058908"
+        iyz="-3.52126232920624E-07"
+        izz="0.000393325605015092" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint3"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="link2" />
+    <child
+      link="link3" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="link4">
+    <inertial>
+      <origin
+        xyz="0.0291881806808932 0.124867607466044 -3.63057158527663E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.466600235297102" />
+      <inertia
+        ixx="0.000619376723298426"
+        ixy="-6.43306365917611E-06"
+        ixz="8.61806750222453E-20"
+        iyy="0.000307317504049884"
+        iyz="7.29005337778413E-10"
+        izz="0.000586669924778159" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint4"
+    type="continuous">
+    <origin
+      xyz="0.2657 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="link3" />
+    <child
+      link="link4" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="link5">
+    <inertial>
+      <origin
+        xyz="4.63912431417079E-06 0.00151980833934072 0.25201456465379"
+        rpy="0 0 0" />
+      <mass
+        value="0.195613242375712" />
+      <inertia
+        ixx="0.000102554776637174"
+        ixy="-1.08802160289467E-08"
+        ixz="1.24469202231618E-08"
+        iyy="5.18337746202776E-05"
+        iyz="-1.30847483349423E-08"
+        izz="0.000105562683793646" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint5"
+    type="continuous">
+    <origin
+      xyz="0.03 0 0"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="link4" />
+    <child
+      link="link5" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="link6">
+    <inertial>
+      <origin
+        xyz="-6.07964789622883E-11 0.0691724928061045 0.000628722967556733"
+        rpy="0 0 0" />
+      <mass
+        value="0.161969401289854" />
+      <inertia
+        ixx="0.000105561803004323"
+        ixy="-5.61363117921256E-15"
+        ixz="2.85334237205982E-13"
+        iyy="5.63327162643155E-05"
+        iyz="-2.05656009879871E-08"
+        izz="9.71327301603902E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint6"
+    type="continuous">
+    <origin
+      xyz="0 0 0.264"
+      rpy="1.5708 0 0" />
+    <parent
+      link="link5" />
+    <child
+      link="link6" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="link7">
+    <inertial>
+      <origin
+        xyz="8.07188976982287E-05 -7.96117017795583E-10 0.165632931916007"
+        rpy="0 0 0" />
+      <mass
+        value="0.237845160272613" />
+      <inertia
+        ixx="0.000132525575104004"
+        ixy="-2.90159557863094E-10"
+        ixz="6.56633341660545E-07"
+        iyy="0.000101058944599504"
+        iyz="1.02513594750354E-09"
+        izz="0.000138731723169754" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link7.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://單手URDF_第二張圖_第二版20250922.SLDASM/meshes/link7.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint7"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="link6" />
+    <child
+      link="link7" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+</robot>

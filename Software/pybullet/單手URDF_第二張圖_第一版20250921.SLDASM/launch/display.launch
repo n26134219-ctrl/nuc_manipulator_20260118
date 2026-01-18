@@ -1,0 +1,20 @@
+<launch>
+  <arg
+    name="model" />
+  <param
+    name="robot_description"
+    textfile="$(find 單手URDF_第二張圖_第一版20250921.SLDASM)/urdf/單手URDF_第二張圖_第一版20250921.SLDASM.urdf" />
+  <node
+    name="joint_state_publisher_gui"
+    pkg="joint_state_publisher_gui"
+    type="joint_state_publisher_gui" />
+  <node
+    name="robot_state_publisher"
+    pkg="robot_state_publisher"
+    type="robot_state_publisher" />
+  <node
+    name="rviz"
+    pkg="rviz"
+    type="rviz"
+    args="-d $(find 單手URDF_第二張圖_第一版20250921.SLDASM)/urdf.rviz" />
+</launch>
