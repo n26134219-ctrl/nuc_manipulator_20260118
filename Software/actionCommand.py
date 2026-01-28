@@ -153,7 +153,7 @@ class CommandPublisher:
         time.sleep(2)
         self.capture_publisher("head")
     def arms_camera_capture(self, x, y, z, pick_mode, arm):
-        camera_to_gripper_offset = 57.5/2
+        camera_to_gripper_offset = 60/2 #57.5/2 59/2 59.5/2
         
         distance = 150
         if arm == "left":
@@ -173,61 +173,115 @@ class CommandPublisher:
                 self.capture_publisher("right")
                 time.sleep(12)
         elif pick_mode == "down":
+            if abs(y) < 150:
+                y_dis = 15
+            elif abs(y) > 165:
+                y_dis = -20
+            elif abs(y) >= 155 and abs(y) <= 165:
+                y_dis = -5
+            else:
+                y_dis = 0
             step1_thread = threading.Thread(
-                target=self.single_move, args=(arm, 400, y , -250, pick_mode, sign * -90)
+                target=self.single_move, args=(arm, 400, sign * 115, -250, pick_mode, sign * -90)
             )
             step1_thread.start()
             step1_thread.join()  # 等待步驟 1 完成
             step2_thread = threading.Thread(
-                target=self.single_move, args=(arm, x - camera_to_gripper_offset, y, -200 , pick_mode, sign * -90)
+                # target=self.single_move, args=(arm, x - camera_to_gripper_offset, y, -200 , pick_mode, sign * -90)
+                target=self.single_move, args=(arm, x - camera_to_gripper_offset, y+ sign * y_dis, -145 , pick_mode, sign * -90) 
             )
             step2_thread.start()
             step2_thread.join()  # 等待步驟 2 完成
-            step3_thread = threading.Thread(
-                target=self.single_move, args=(arm, x - camera_to_gripper_offset, y, -140 , pick_mode, sign * -90)
-            )
-            step3_thread.start()
-            step3_thread.join()  # 等待步驟 3 完成
+            # step3_thread = threading.Thread(
+            #     target=self.single_move, args=(arm, x - camera_to_gripper_offset, y, -140 , pick_mode, sign * -90) #-140
+            # )
+            # step3_thread.start()
+            # step3_thread.join()  # 等待步驟 3 完成
             self.capture_publisher(arm)
-            time.sleep(12)
+            time.sleep(23)
     
     def single_arm_place(self, x, y, z, pick_mode, size, angle, arm):
         if arm == "left":
             sign = 1
+            init_angle = 150
         elif arm == "right":
             sign = -1
+            init_angle = 30
+        gripper_length = 23.5
         if pick_mode == "down":
-            self.single_move(arm, x, y + sign * 13, z + 100, pick_mode, sign * -90)
-            self.single_move(arm, x, y + sign * 13, z + 100, pick_mode, angle)
-            self.single_move(arm, x, y + sign * 13, z + size[2]/2, pick_mode, angle)
-            self.open_gripper(arm)
-            self.single_move(arm, x, y + sign * 13, z + 100, pick_mode, sign * -90)
+            if abs(y) <= 150:
+                y_dis = 15
+            else:
+                y_dis = 0
+            place_height_offset = 5 #15
+            
+            step0_thread = threading.Thread(
+                target=self.single_move, args=(arm, 300, sign*130, -220, pick_mode, sign * -90)
+            )
+            step0_thread.start()
+            step0_thread.join()  # 等待步驟 0 完成
+            # step1_thread = threading.Thread(
+            #     target=self.single_move, args=(arm, 300, sign*130, -220, pick_mode, angle)
+            #     # target=self.single_move, args=(arm, x, y , z + 150, pick_mode, sign * -90)
+            # )
+            # step1_thread.start()
+            # step1_thread.join()  # 等待步驟 1 完成
+            step2_thread = threading.Thread(
+                # target=self.single_move, args=(arm, x - camera_to_gripper_offset, y, -200 , pick_mode, sign * -90)
+                target=self.single_move, args=(arm, x, y , z + 150 , pick_mode, angle)
+                
+            )
+            step2_thread.start()
+            step2_thread.join() # 等待步驟 2 完成
 
+            step3_thread = threading.Thread(
+                target=self.single_move, args=(arm, x, y , z + size[2]+ gripper_length +place_height_offset, pick_mode, angle)
+            )
+            step3_thread.start()
+            step3_thread.join()  # 等待步驟 3 完成
+            self.open_gripper(arm)
+
+            self.single_move(arm, x, y, -200, pick_mode, angle)
+            
+            # self.single_move(arm, x, y , -200, pick_mode,sign * -90) # 往前抬起手 並轉正
+            self.single_move(arm, x + 50, sign *190, -200, pick_mode,sign * -90) 
+            self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
 
         elif pick_mode == "side":
             self.single_move(arm, x, y + sign * 120, z, pick_mode, angle)
             self.single_move(arm, x, y + sign * size[0]/2, z, pick_mode, angle)
             self.open_gripper(arm)
             self.single_move(arm, x, y + sign * size[0]/2, z + 100, pick_mode, angle)
-        self.initial_position()
+        
     
     def single_arm_pick(self, x, y, z, pick_mode, size, angle, arm):
         if arm == "left":
             sign = 1
+            offset= 0
         elif arm == "right":
             sign = -1
+            offset= 0
         if pick_mode == "down":
 
             
-            self.single_move(arm, x, y + sign * 15, z + 100, pick_mode, angle)
+            self.single_move(arm, x, y + offset, z + 100, pick_mode, angle)
            
-            self.single_move(arm, x, y + sign * 15, z + size[2]/2, pick_mode, angle)
-            
+            self.single_move(arm, x, y + offset, z + size[2], pick_mode, angle)
+            # while True:
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
             self.close_gripper(arm)
-            self.single_move(arm, 400, sign *180, -220, pick_mode,sign * -90) # 往前抬起手 並轉正
-          
-            # self.single_move(arm, 400, y + sign * 15, z + 100, pick_mode, sign * -90) 
-            # self.single_move(arm, 400, -150, -250 , "down", 90)
+            self.single_move(arm, x + 50, y + sign * 15, -200, pick_mode,sign * -90) # 往前抬起手 並轉正
+            self.single_move(arm, x + 50, sign *190, -200, pick_mode,sign * -90) 
+           
 
         elif pick_mode == "side":
             self.single_move(arm, x, y + sign * 120, z, pick_mode, angle)
@@ -242,4 +296,4 @@ class CommandPublisher:
     
         self.dual_move( 420, 120, -130, "side", 150, 420, -120, -130, "side", 30)
         self.neck_control(0, 76)
-        time.sleep(10)
+        

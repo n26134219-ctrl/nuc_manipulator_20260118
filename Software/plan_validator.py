@@ -75,49 +75,142 @@ class PlanValidator:
                 self.errors.append(error)
                 self.total_penalty += error.severity
     
+    # def _check_prerequisites(self, steps: List[ActionStep], arm: str):
+    #     """檢查前提條件"""
+    #     held_objects = set()  # 記錄手上持有的物品
+        
+    #     for step in steps:
+    #         # 檢查 sweep_the_table 前是否有 pick 掃把
+    #         if step.action_type == ActionType.SWEEP:
+    #             # 檢查之前是否有抓取掃把或畚箕
+    #             has_broom_or_dustpan = any(
+    #                 s.action_type == ActionType.PICK and 
+    #                 s.step_id < step.step_id 
+    #                 for s in steps
+    #             )
+    #             if not has_broom_or_dustpan:
+    #                 error = ValidationError(
+    #                     error_type="缺少前提",
+    #                     severity=10,
+    #                     step_id=step.step_id,
+    #                     arm=arm,
+    #                     description=f"步驟 {step.step_id} 執行掃地前未抓取掃把或畚箕"
+    #                 )
+    #                 self.errors.append(error)
+    #                 self.total_penalty += error.severity
+            
+    #         # 檢查 place 前是否有對應的 pick
+    #         if step.action_type == ActionType.PLACE:
+    #             if step.object_index not in held_objects:
+    #                 error = ValidationError(
+    #                     error_type="缺少前提",
+    #                     severity=9,
+    #                     step_id=step.step_id,
+    #                     arm=arm,
+    #                     description=f"步驟 {step.step_id} 放置物品 {step.object_index} 前未抓取"
+    #                 )
+    #                 self.errors.append(error)
+    #                 self.total_penalty += error.severity
+            
+    #         # 更新持有狀態
+    #         if step.action_type == ActionType.PICK:
+    #             held_objects.add(step.object_index)
+    #         elif step.action_type == ActionType.PLACE:
+    #             held_objects.discard(step.object_index)
     def _check_prerequisites(self, steps: List[ActionStep], arm: str):
-        """檢查前提條件"""
-        held_objects = set()  # 記錄手上持有的物品
+        """檢查前提條件和依賴關係"""
+        completed_steps = set()  # 已完成的步驟 ID
+        held_objects = {}  # {object_index: step_id} 記錄物品被哪個步驟抓取
+        last_eye_in_hand = {}  # {step_id: object_index} 記錄 eye_in_hand 偵測的物品
         
         for step in steps:
-            # 檢查 sweep_the_table 前是否有 pick 掃把
-            if step.action_type == ActionType.SWEEP:
-                # 檢查之前是否有抓取掃把或畚箕
-                has_broom_or_dustpan = any(
-                    s.action_type == ActionType.PICK and 
-                    s.step_id < step.step_id 
-                    for s in steps
-                )
-                if not has_broom_or_dustpan:
+            # 1. 檢查 prerequisites 中的步驟是否都已完成
+            for prereq_id in step.prerequisites:
+                if prereq_id not in completed_steps:
                     error = ValidationError(
                         error_type="缺少前提",
                         severity=10,
                         step_id=step.step_id,
                         arm=arm,
-                        description=f"步驟 {step.step_id} 執行掃地前未抓取掃把或畚箕"
+                        description=f"步驟 {step.step_id} 的前置步驟 {prereq_id} 尚未完成"
                     )
                     self.errors.append(error)
                     self.total_penalty += error.severity
             
-            # 檢查 place 前是否有對應的 pick
-            if step.action_type == ActionType.PLACE:
-                if step.object_index not in held_objects:
+            # 2. 記錄 eye_in_hand 偵測的物品
+            if step.action_type == ActionType.EYE_IN_HAND:
+                if step.object_index is not None:
+                    last_eye_in_hand[step.step_id] = step.object_index
+            
+            # 3. 檢查 pick 前是否有 eye_in_hand 前置步驟
+            elif step.action_type == ActionType.PICK:
+                # 檢查 prerequisites 中是否有 eye_in_hand
+                eye_in_hand_prereqs = [
+                    prereq_id for prereq_id in step.prerequisites
+                    if any(s.step_id == prereq_id and s.action_type == ActionType.EYE_IN_HAND 
+                        for s in steps)
+                ]
+                
+                if not eye_in_hand_prereqs:
                     error = ValidationError(
                         error_type="缺少前提",
-                        severity=9,
+                        severity=8,
                         step_id=step.step_id,
                         arm=arm,
-                        description=f"步驟 {step.step_id} 放置物品 {step.object_index} 前未抓取"
+                        description=f"步驟 {step.step_id} pick 前未偵測物品 (缺少 eye_in_hand 前置步驟)"
+                    )
+                    self.errors.append(error)
+                    self.total_penalty += error.severity
+                else:
+                    # 從最近的 eye_in_hand 前置步驟推斷抓取的物品
+                    last_eye_prereq = max(eye_in_hand_prereqs)
+                    if last_eye_prereq in last_eye_in_hand:
+                        obj_idx = last_eye_in_hand[last_eye_prereq]
+                        held_objects[obj_idx] = step.step_id
+            
+            # 4. 檢查 sweep 前是否有 pick 前置步驟
+            elif step.action_type == ActionType.SWEEP:
+                # 檢查 prerequisites 中是否有 pick
+                pick_prereqs = [
+                    prereq_id for prereq_id in step.prerequisites
+                    if any(s.step_id == prereq_id and s.action_type == ActionType.PICK 
+                        for s in steps)
+                ]
+                
+                if not pick_prereqs:
+                    error = ValidationError(
+                        error_type="缺少前提",
+                        severity=10,
+                        step_id=step.step_id,
+                        arm=arm,
+                        description=f"步驟 {step.step_id} sweep 前未抓取工具 (缺少 pick 前置步驟)"
                     )
                     self.errors.append(error)
                     self.total_penalty += error.severity
             
-            # 更新持有狀態
-            if step.action_type == ActionType.PICK:
-                held_objects.add(step.object_index)
+            # 5. 檢查 place 前是否有對應物品的 pick
             elif step.action_type == ActionType.PLACE:
-                held_objects.discard(step.object_index)
-    
+                if step.object_index is not None:
+                    # 檢查該物品是否已被抓取
+                    if step.object_index not in held_objects:
+                        error = ValidationError(
+                            error_type="缺少前提",
+                            severity=9,
+                            step_id=step.step_id,
+                            arm=arm,
+                            description=f"步驟 {step.step_id} 放置物品 {step.object_index} 前未抓取"
+                        )
+                        self.errors.append(error)
+                        self.total_penalty += error.severity
+                    else:
+                        # 放置後移除持有狀態
+                        del held_objects[step.object_index]
+            
+            # 標記此步驟已完成
+            completed_steps.add(step.step_id)
+
+
+
     def _check_sequence_logic(self, steps: List[ActionStep], arm: str):
         """檢查順序衝突"""
         for i in range(len(steps) - 1):
@@ -232,6 +325,7 @@ class PlanValidator:
         if not self.errors:
             print("✓ 計畫通過所有檢查")
         else:
+
             for error in self.errors:
                 print(f"\n[{error.error_type}] 嚴重度: {error.severity}/10")
                 print(f"  手臂: {error.arm}")

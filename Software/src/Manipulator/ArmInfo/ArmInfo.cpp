@@ -182,7 +182,7 @@ ArmInfo::checkPositionWorkspace(const Vector3d& pos_in,
     std::string type_out = type;
     bool change_pos = false, change_ori = false;
 
-    const double max_z = 400, min_z = -345;
+    const double max_z = 400, min_z = -350;
     const double min_x = 200, max_x = 700;
     const double max_y = 760, min_y = -760;
 
@@ -338,12 +338,14 @@ ArmInfo::getPickTypePose(const std::string& arm,
         }
         else if (ptype == "side_down"){
             ori = Vector3d(-180, 0, 0);
+            double down_angle = angle;
             if (angle>=90 ) {
                 double sup = 180-angle;
                 ori.y() = sup;
                 if (angle==90) outType="forward";
             } else ori.y() = -angle;
-            ori.x() = -180 + abs(angle);
+            if (angle>=90) down_angle = 180 -down_angle;
+            ori.x() =  abs(down_angle);
         }
     }
     else if(arm=="right"){
@@ -360,6 +362,7 @@ ArmInfo::getPickTypePose(const std::string& arm,
             if (angle > 0 || angle == 0) ori.z() = -(180-angle);
             else ori.z() = (180 + angle);
         }
+        
         else if(ptype=="forward"){
             ori=Vector3d(0,110,0);
         }
@@ -372,15 +375,15 @@ ArmInfo::getPickTypePose(const std::string& arm,
             
         }
         else if (ptype == "side_down"){
-            
+            double down_angle = angle;
             ori=Vector3d(0,180,0);
             if(angle>90) ori.y()=-angle;
             else if(0<=angle&&angle<=90) {
                 ori.y()=(180-angle);
                 if (angle==90) outType="forward";   
             }else ori.y()=(-180+abs(angle));
-
-            ori.x() = abs(angle);
+            if (angle>=90) down_angle = 180 -down_angle;
+            ori.x() = abs(down_angle);
         }
     } else {
         cout<<"Unknown arm"<<endl;
@@ -407,6 +410,12 @@ void ArmInfo::checkMotorLimit() {
     
     
 }
+
+
+
+
+
+
 
 /* transform matrices
 transformMatrix : compute the transformation matrix from DH parameters

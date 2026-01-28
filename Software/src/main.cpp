@@ -25,8 +25,8 @@ int main(int argc, char **argv)
                                             &Robot::pointCallback, robot);
     // ros::Subscriber camera_left_sub = nh.subscribe("/camera/left", 10, 
     //                                         &Robot::LeftCameraCallback, robot);
-    ros::Subscriber camera_right_sub = nh.subscribe("/camera/right", 10, 
-                                            &Robot::RightCameraCallback, robot);
+    // ros::Subscriber camera_right_sub = nh.subscribe("/camera/right", 10, 
+    //                                         &Robot::RightCameraCallback, robot);
                                             
 
     ros::Subscriber sub = nh.subscribe("robot_command", 10, &Robot::commandCallback, robot);

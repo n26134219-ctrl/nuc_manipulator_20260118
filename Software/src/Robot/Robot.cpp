@@ -161,6 +161,7 @@ void Robot::openGripper(std::string arm)
 }
 void Robot::GripperController(std::string arm, float angle)
 {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     if (arm == "left") {
         leftArm->Grippercontrol(angle);
     } else if (arm == "right") {
@@ -172,29 +173,33 @@ void Robot::GripperController(std::string arm, float angle)
 
 void Robot::refineGripper_thread(std::string arm, float adjustment, double angle)
 {
+    std::thread ArmThread([this, arm, adjustment]() {
+        refineGripperPosition(arm, adjustment);
+    });
+    ArmThread.join();
+    // 這裡可以加一點延遲，確保手臂穩定
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // (夾爪角度)
     std::thread gripperThread([this, arm, angle]() {
         GripperController(arm, angle);
     });
-
-    std::thread ArmThread([this, arm, adjustment]() {
-        refineGripperPosition(arm, adjustment);
-    });
+    gripperThread.join();  
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    gripperThread.join();  // 順序無所謂
-    ArmThread.join();
 }
 
 void Robot::linear_gripper_control(std::string arm)
 {
 
     refineGripper_thread(arm , 10, 55.0);
-    refineGripper_thread(arm , 7, 100.0); //8
+    refineGripper_thread(arm , 6.8, 100.0); //8//7
+    // refineGripper_thread(arm , 3, 125.0); //8
+    // refineGripper_thread(arm , 3.8, 250.0); //8
     refineGripper_thread(arm , 6.5, 250.0); //7
     // refineGripper_thread(arm , 10, 100.0);
     // refineGripper_thread(arm , 9, 250.0);
 
-    closeGripper(arm);
+    // closeGripper(arm);
 }
 void Robot::refineGripperPosition(std::string arm, float adjustment)
 {
@@ -266,7 +271,7 @@ Vector3d Robot::camera_to_world_transform(double cx, double cy, double cz, int c
     Vector4d  world_target;
 
     Vector3d base_target=camera_to_base_transform(cx, cy, cz, camera_id);
-     if (camera_id == 1){
+    if (camera_id == 1){
         world_target = leftArm->transformToWorldPosition(base_target);
 
 
@@ -449,20 +454,20 @@ void Robot::initPublisher(ros::NodeHandle& nh)
 //     }
 
 // }
-void Robot::RightCameraCallback(const geometry_msgs::Point::ConstPtr& msg) 
-{
+// void Robot::RightCameraCallback(const geometry_msgs::Point::ConstPtr& msg) 
+// {
    
-    try {
-        // 接收相機座標並轉換
-        Right_target_POS = camera_to_world_transform(msg->x, msg->y, msg->z, 2);
+//     try {
+//         // 接收相機座標並轉換
+//         Right_target_POS = camera_to_world_transform(msg->x, msg->y, msg->z, 2);
         
-        ROS_INFO("Right Transformed: Camera(%.1f, %.1f, %.1f) -> Base(%.1f, %.1f, %.1f)",
-                 msg->x, msg->y, msg->z,
-                 Right_target_POS.x(), Right_target_POS.y(), Right_target_POS.z());
-    } catch (const std::exception& e) {
-        ROS_ERROR("Transform failed: %s", e.what());
-    }
-}
+//         ROS_INFO("Right Transformed: Camera(%.1f, %.1f, %.1f) -> Base(%.1f, %.1f, %.1f)",
+//                  msg->x, msg->y, msg->z,
+//                  Right_target_POS.x(), Right_target_POS.y(), Right_target_POS.z());
+//     } catch (const std::exception& e) {
+//         ROS_ERROR("Transform failed: %s", e.what());
+//     }
+// }
 
 bool Robot::ArmCameraTransform(robot_core::ArmBatchTransform::Request &req,
                                    robot_core::ArmBatchTransform::Response &res) 

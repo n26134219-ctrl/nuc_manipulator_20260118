@@ -179,8 +179,7 @@ class GPTPlanner:
 
             "object_name: trash"
             "object_index: 2"
-            "object_min: px=290mm, py=15mm, pz=-300mm"
-            "object_max: px=320mm, py=-15mm, pz=-300mm"
+            "object_position: px=310mm, py=0mm, pz=-300mm"
             "object_angle: 0 deg"
             "==============================="
         )

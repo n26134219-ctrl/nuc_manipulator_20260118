@@ -66,50 +66,6 @@ Quaterniond RightArm::quatMul(const Quaterniond& a, const Quaterniond& b) {
     return a * b;
 }
 
-// 給定目標角度，計算各軸速度
-
-// bool RightArm::stepMoveJ(const Eigen::Matrix<double,6,1>& target_joints, double max_speed_rad, double acceleration_factor) {
-    
-//     // 1. [替換] 取得當前關節角度 (rad)
-//     Eigen::Matrix<double,6,1> current_joints = getMotorAngle(); 
-    
-//     // 2. 計算誤差向量
-//     Eigen::Matrix<double,6,1> diff = target_joints - current_joints;
-    
-//     // 3. 找出差距最大的那個關節 (Leading Axis)
-//     double max_diff = diff.cwiseAbs().maxCoeff();
-    
-//     // 4. 設定收斂條件 (例如所有軸誤差都在 0.03 rad 以內)
-//     if (max_diff < 0.03) { 
-//         // SetArmVelocity(Eigen::Matrix<double,6,1>::Zero()); // 停機
-//         SetArmVelocity(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);// 停機
-
-//         return true; // 到達目標
-//     }
-
-//     // 5. 計算同步速度 (Synchronized Velocity)
-//     // 邏輯：所有軸的速度 = (該軸距離 / 最大距離) * 全域速度 * 加速度因子
-//     Eigen::Matrix<double,6,1> cmd_vel = (diff / max_diff) * max_speed_rad * acceleration_factor;
-
-//     // 6. 加入減速緩衝區 (可選)
-//     // double slow_down_zone = 0.2; // rad
-//     // if (max_diff < slow_down_zone) {
-//     //     double scale = max_diff / slow_down_zone;
-//     //     scale = std::max(0.01, scale); 
-//     //     cmd_vel *= scale;
-//     // }
-
-//     // 7. 送出速度 (假設 setJointVelocity 接受 Matrix<double,6,1> 或 VectorXd)
-//     // setJointVelocity(cmd_vel);
-//     SetArmVelocity(cmd_vel(0)*pro_radpersec2scale_,
-//                        cmd_vel(1)*pro_radpersec2scale_,
-//                         cmd_vel(2)*pro_radpersec2scale_,
-//                         cmd_vel(3)*pro_radpersec2scale_,
-//                         cmd_vel(4)*pro_radpersec2scale_,
-//                         cmd_vel(5)*pro_radpersec2scale_);
-    
-//     return false; // 還沒到
-// }
 
 bool RightArm::stepIK(double ox_deg, double oy_deg, double oz_deg,
                    double px, double py, double pz,  double acceleration_factor)
@@ -280,14 +236,20 @@ void RightArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mo
     
     // 取得第 4 軸角度 (index 3) 並轉成 degree 方便判斷
     double q1_deg = current_q(0) * 180.0 / M_PI;
+    double q2_deg = current_q(1) * 180.0 / M_PI;
+    double q3_deg = current_q(2) * 180.0 / M_PI;
     double q4_deg = current_q(3) * 180.0 / M_PI;
     double q5_deg = current_q(4) * 180.0 / M_PI;
     double q6_deg = current_q(5) * 180.0 / M_PI;
-    double safety_threshold1 = 50.0;
+    double safety_threshold1 = 15.0;
+    double safety_threshold2 = 50.0;
     double safety_threshold4 = 89.0;
-    double limit_threshold4 = 120.0;
     double safety_threshold5 = 45.0;
     double safety_threshold6 = 90.0;
+
+    double limit_threshold3 = -65.0;
+    double limit_threshold4 = 140.0;
+    
     
     Vector3d ori_rad(ox_deg*M_PI/180.0, oy_deg*M_PI/180.0, oz_deg*M_PI/180.0);
     
@@ -331,18 +293,41 @@ void RightArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mo
             std::cout << "[MODE SWITCH] Limit Warning! Axis 4 at " << q4_deg << " deg." << std::endl;
             std::cout << ">>> Switching to Joint Interpolation Mode (Unwinding to 0)..." << std::endl;
 
+            // // 設定中繼點：複製當前所有角度，只修改第 4 軸為 0 度
+            // Eigen::Matrix<double,6,1> safe_joints = current_q; 
+            // if (std::abs(q1_deg) > safety_threshold1) {
+            //     safe_joints(0) = Sign(safe_joints(0)) * 10.0 * M_PI / 180.0;
+            // }
+            // if (std::abs(q2_deg) < safety_threshold2) {
+            //     safe_joints(1) = -50.0 * M_PI / 180.0;
+            // }
+            // safe_joints(3) = 0.0; // 強制將第 4 軸歸零 (rad)
+            // if (std::abs(q5_deg) > safety_threshold5 || std::abs(q5_deg) == safety_threshold5 ) {
+            //     safe_joints(4) = Sign(safe_joints(4))*20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
+            // }
+            // if (std::abs(q6_deg) > safety_threshold6 || std::abs(q6_deg) == safety_threshold6 ) {
+            //     safe_joints(5) =  0.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            // }
+
             // 設定中繼點：複製當前所有角度，只修改第 4 軸為 0 度
             Eigen::Matrix<double,6,1> safe_joints = current_q; 
-            if (std::abs(q1_deg) < safety_threshold1) {
+            if (std::abs(q1_deg) > safety_threshold1) {
+                safe_joints(0) = Sign(safe_joints(0)) * 10.0 * M_PI / 180.0;
+            }
+            if (std::abs(q2_deg) < safety_threshold2) {
                 safe_joints(1) = -50.0 * M_PI / 180.0;
+            }
+            if (std::abs(q3_deg) > limit_threshold3 || std::abs(q3_deg) == limit_threshold3 ) {
+                safe_joints(2) = safe_joints(2)-15.0 * M_PI / 180.0;
             }
             safe_joints(3) = 0.0; // 強制將第 4 軸歸零 (rad)
             if (std::abs(q5_deg) > safety_threshold5 || std::abs(q5_deg) == safety_threshold5 ) {
-                safe_joints(4) = Sign(safe_joints(4))*20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
+                std::cout << "[MODE SWITCH] Limit Warning! Axis 5 at " << q5_deg << " deg." << std::endl;
+                safe_joints(4) = 20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
             }
-            if (std::abs(q6_deg) > safety_threshold6 || std::abs(q6_deg) == safety_threshold6 ) {
-                safe_joints(5) =  0.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
-            }
+
+            safe_joints(5) = 45.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            
             
             double speed = 0.005; // 設定回歸速度 0.001rad/s = 0.057deg/s
             double accel = 0.005; // 慢慢起步
@@ -499,7 +484,7 @@ void RightArm::setInitialPose() {
     double init_ox = 0.0;
     double init_oy = 180.0-35.0; // 往外偏 35 度
     double init_oz = 0.0;
-    Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, -200, "side");
+    // Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, -200, "side");
     Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, init_z, "side");
     openGripper();
 }

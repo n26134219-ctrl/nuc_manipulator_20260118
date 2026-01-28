@@ -307,14 +307,20 @@ void LeftArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mod
     
     // 取得第 4 軸角度 (index 3) 並轉成 degree 方便判斷
     double q1_deg = current_q(0) * 180.0 / M_PI;
+    double q2_deg = current_q(1) * 180.0 / M_PI;
+    double q3_deg = current_q(2) * 180.0 / M_PI;
     double q4_deg = current_q(3) * 180.0 / M_PI;
     double q5_deg = current_q(4) * 180.0 / M_PI;
     double q6_deg = current_q(5) * 180.0 / M_PI;
-    double safety_threshold1 = 50.0;
+    double safety_threshold1 = 15.0;
+    double safety_threshold2 = 50.0;
     double safety_threshold4 = 89.0;
-    double limit_threshold4 = 120.0;
+    
     double safety_threshold5 = 45.0;
     double safety_threshold6 = 90.0;
+    
+    double limit_threshold3 = -60.0;
+    double limit_threshold4 = 120.0;
     
     Vector3d ori_rad(ox_deg*M_PI/180.0, oy_deg*M_PI/180.0, oz_deg*M_PI/180.0);
     
@@ -360,19 +366,26 @@ void LeftArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mod
 
             // 設定中繼點：複製當前所有角度，只修改第 4 軸為 0 度
             Eigen::Matrix<double,6,1> safe_joints = current_q; 
-            if (std::abs(q1_deg) < safety_threshold1) {
+            if (std::abs(q1_deg) > safety_threshold1) {
+                safe_joints(0) = Sign(safe_joints(0)) * 10.0 * M_PI / 180.0;
+            }
+            if (std::abs(q2_deg) < safety_threshold2) {
                 safe_joints(1) = -50.0 * M_PI / 180.0;
+            }
+            if (std::abs(q3_deg) > limit_threshold3 || std::abs(q3_deg) == limit_threshold3 ) {
+                safe_joints(2) = safe_joints(2)-20.0 * M_PI / 180.0;
             }
             safe_joints(3) = 0.0; // 強制將第 4 軸歸零 (rad)
             if (std::abs(q5_deg) > safety_threshold5 || std::abs(q5_deg) == safety_threshold5 ) {
                 std::cout << "[MODE SWITCH] Limit Warning! Axis 5 at " << q5_deg << " deg." << std::endl;
-                safe_joints(4) = Sign(safe_joints(4))*20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
+                safe_joints(4) = 20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
             }
-            if (std::abs(q6_deg) > safety_threshold6 || std::abs(q6_deg) == safety_threshold6 ) {
-                std::cout << "[MODE SWITCH] Limit Warning! Axis 6 at " << q6_deg << " deg." << std::endl;
+            safe_joints(5) = 45.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            // if (std::abs(q6_deg) > safety_threshold6 || std::abs(q6_deg) == safety_threshold6 ) {
+            //     std::cout << "[MODE SWITCH] Limit Warning! Axis 6 at " << q6_deg << " deg." << std::endl;
 
-                safe_joints(5) = 0.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
-            }
+            //     safe_joints(5) = 0.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            // }
             
             double speed = 0.005; // 設定回歸速度 0.001rad/s = 0.057deg/s
             double accel = 0.005; // 慢慢起步
@@ -461,50 +474,6 @@ void LeftArm::trajectory_planning(double ox, double oy, double oz, double px, do
 
 
 
-
-// void LeftArm::trajectory_planning(double ox, double oy, double oz, double px, double py, double pz)
-// {
-    
-//     auto start_time = std::chrono::steady_clock::now();
-//     const double timeout = 1000.0; // seconds
-//     double acceleration_factor = 0.005;
-
-//     int iteration = 0;
-//     Eigen::Matrix<double,6,1> prev_qdot = Eigen::Matrix<double,6,1>::Zero();
-
-
-//     // if (std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count() < timeout) {
-//     while  (std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count() < timeout) {
-//         checkConnected();
-//     // while (true) {
-//         iteration += 1;
-//         if (acceleration_factor < 1.0 && iteration % 100 == 0)
-//             acceleration_factor = std::min(1.0d, acceleration_factor + 0.001d);
-//         if (step_move(ox, oy, oz, px, py, pz,  acceleration_factor)) {
-//         // if (step_move(ox, oy, oz, px, py, pz, acceleration_counter, acceleration_factor, prev_qdot)) {
-//             Eigen::Vector3d target_position(px, py, pz);
-//             double error = (target_position - getCurrentPosition()).norm();
-//             std::cout << "\t[INFO] Move is over." << std::endl;
-//             std::cout << "Target reached! distance error: " << error << " mm (iter: " << iteration << ")" << std::endl;
-//             std::cout << "acceleration_factor final: "<<acceleration_factor<<std::endl;
-//             updateRobotPose();
-//             Stop_all_motors();
-//             is_working_ = false;
-//             break;
-            
-//         }
-        
-        
-//     }
-//     if (std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time).count() > timeout) {
-        
-//         std::cout << "Timeout: Failed to reach the target within the time limit." << std::endl;
-//         updateRobotPose();
-//     }
-        
-//     is_working_ = false;
-// }
-
 void LeftArm::Trajectory_Planning(double ox_deg, double oy_deg, double oz_deg, double X, double Y, double Z, std::string pick_mode)
 {
     if(is_working_) std::cout << "\t[INFO] Arm is moving. Wait for the arm to stop!" << std::endl;
@@ -573,7 +542,7 @@ void LeftArm::setInitialPose() {
     double init_ox = -180.0  ;
     double init_oy = 35.0; // 往外偏 35 度
     double init_oz = 0.0;
-    Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, -200, "side");
+    // Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, -200, "side");
     Trajectory_Planning(init_ox, init_oy, init_oz, init_x, init_y, init_z, "side");
     openGripper();
 }

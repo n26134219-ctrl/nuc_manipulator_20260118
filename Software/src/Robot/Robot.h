@@ -58,7 +58,7 @@ public:
     void pointCallback(const geometry_msgs::Point::ConstPtr& msg);
     void VoiceCommandCallback(const std_msgs::String::ConstPtr& msg);
     // void LeftCameraCallback(const geometry_msgs::Point::ConstPtr& msg);
-    void RightCameraCallback(const geometry_msgs::Point::ConstPtr& msg);
+    // void RightCameraCallback(const geometry_msgs::Point::ConstPtr& msg);
     void Action_Done_Callback(string msg_s) ;
     // 參數型別要改成 robot_core::
     bool batchTransformCallback(robot_core::BatchTransform::Request &req,

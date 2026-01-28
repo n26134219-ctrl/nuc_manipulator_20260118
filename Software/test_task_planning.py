@@ -52,7 +52,7 @@ def execute_plan(robot_plan: RobotPlan):
         all_steps.append((step, "right"))
     
     # 按 step_id 排序（如果需要嚴格順序）
-    # all_steps.sort(key=lambda x: x[0].step_id)
+    all_steps.sort(key=lambda x: x[0].step_id)
     
     for step, arm in all_steps:
         func_call = step.to_function_call()
