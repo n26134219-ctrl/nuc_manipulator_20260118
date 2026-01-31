@@ -120,6 +120,15 @@ class CommandPublisher:
         }
         self._send(command)
         wait_for_robot_action_completion()
+    def close_gripper_ang(self, arm, angle=55):
+        """關閉夾爪命令"""
+        command = {
+            "action": "close_gripper_ang",  # 識別欄位
+            "arm": arm,
+            "angle": angle
+        }
+        self._send(command)
+        wait_for_robot_action_completion()
     def open_gripper(self, arm):
         """打開夾爪命令"""
         command = {
@@ -153,7 +162,7 @@ class CommandPublisher:
         time.sleep(2)
         self.capture_publisher("head")
     def arms_camera_capture(self, x, y, z, pick_mode, arm):
-        camera_to_gripper_offset = 60/2 #57.5/2 59/2 59.5/2
+        camera_to_gripper_offset = 72/2 #57.5/2 59/2 59.5/2 60/2 70/2
         
         distance = 150
         if arm == "left":
@@ -173,7 +182,9 @@ class CommandPublisher:
                 self.capture_publisher("right")
                 time.sleep(12)
         elif pick_mode == "down":
-            if abs(y) < 150:
+            if abs(y) < 100:
+                y_dis = 35 #[修改]
+            elif abs(y) < 150:
                 y_dis = 15
             elif abs(y) > 165:
                 y_dis = -20
@@ -198,7 +209,8 @@ class CommandPublisher:
             # step3_thread.start()
             # step3_thread.join()  # 等待步驟 3 完成
             self.capture_publisher(arm)
-            time.sleep(23)
+            # time.sleep(23)
+            time.sleep(12)
     
     def single_arm_place(self, x, y, z, pick_mode, size, angle, arm):
         if arm == "left":
@@ -279,7 +291,7 @@ class CommandPublisher:
             #     else:
             #         print("⚠ 請輸入 1 或 q")
             self.close_gripper(arm)
-            self.single_move(arm, x + 50, y + sign * 15, -200, pick_mode,sign * -90) # 往前抬起手 並轉正
+            self.single_move(arm, x + 50, y + sign * 30, -200, pick_mode,sign * -90) # 往前抬起手 並轉正
             self.single_move(arm, x + 50, sign *190, -200, pick_mode,sign * -90) 
            
 

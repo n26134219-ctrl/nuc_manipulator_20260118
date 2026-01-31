@@ -86,11 +86,11 @@ class GPTPlanner:
         )
         self.safety_constraints_prompt = (
         
-            "物品y座標大於20，使用左手手臂抓取，物品y座標小於-20，使用右手手臂抓取。"
-            "物品y座標介於-20到20之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
+            "物品y座標 大於 10，使用左手手臂抓取，物品y座標 小於 -10，使用右手手臂抓取。"
+            "物品y座標介於-10到10之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
         )
         self.task_planning_profile_prompt = (
-            "歷史任務規劃紀錄: "
+            "任務規劃範例: "
             "==============================="
             "任務: 使用掃把與畚箕清理桌面"
             "動作規劃: "
@@ -147,7 +147,7 @@ class GPTPlanner:
         if self.safety_constraints_prompt:
             self.sections.append(f"## 安全限制\n{self.safety_constraints_prompt}")
         if self.task_planning_profile_prompt:
-            self.sections.append(f"## 任務規劃檔案\n{self.task_planning_profile_prompt}")
+            self.sections.append(f"## 任務規劃範例\n{self.task_planning_profile_prompt}")
         if self.output_format_prompt:
             self.sections.append(f"## 輸出格式\n{self.output_format_prompt}")
 

@@ -372,6 +372,32 @@ void Robot::commandCallback(const std_msgs::String::ConstPtr& msg)
                 // GripperController(arm, angle);
             }
             
+        }else if (action == "close_gripper_ang") {
+            std::string arm = j["arm"];
+            float angle = j["angle"];
+            ROS_INFO("close_gripper_ang: arm=%s", arm.c_str());
+            if (arm == "both") {
+                std::thread leftThread([&]() {
+                    
+                    GripperController("left", angle);
+                });
+                std::thread rightThread([&]() {
+                        
+                    GripperController("right", angle);
+                });
+                leftThread.join();
+                rightThread.join();
+                Action_Done_Callback("Done");    
+            } else {
+                std::thread gripperThread([&]() {
+                    GripperController(arm, angle);
+                });
+                gripperThread.join(); 
+                Action_Done_Callback("Done");
+                // linear_gripper_control(arm);
+                // GripperController(arm, angle);
+            }
+            
         } else if (action == "open_gripper") {
             std::string arm = j["arm"];
             ROS_INFO("open_gripper: arm=%s", arm.c_str());

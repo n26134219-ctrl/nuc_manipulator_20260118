@@ -380,7 +380,7 @@ void LeftArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mod
                 std::cout << "[MODE SWITCH] Limit Warning! Axis 5 at " << q5_deg << " deg." << std::endl;
                 safe_joints(4) = 20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
             }
-            safe_joints(5) = 45.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            safe_joints(5) = 45.0 * M_PI / 180.0; // 強制將第 6 軸歸45度 (rad)
             // if (std::abs(q6_deg) > safety_threshold6 || std::abs(q6_deg) == safety_threshold6 ) {
             //     std::cout << "[MODE SWITCH] Limit Warning! Axis 6 at " << q6_deg << " deg." << std::endl;
 

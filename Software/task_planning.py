@@ -159,6 +159,8 @@ class GPTPlanner:
             4. 生成的動作規劃都需要根據給予的資訊去規劃，不可自行生成未給予的資訊
             5. 根據任務規劃紀錄，如果有對應相同任務，可以參考內容去做調整，請勿完全抄襲，需根據實際任務需求與環境資訊去調整
             6. 參考輸出格式說明，產生對應格式輸出，請勿抄襲範例格式，需根據實際任務需求與環境資訊去調整
+            7. object_position 中的py 為正代表物品在機器人靠近左手區域，負值代表物品在機器人靠近右手區域，請根據此資訊分配手臂
+            8. 請勿抄襲範例
             請遵循給予的資訊去規劃，請勿自行生成未給予的資訊，並提供清晰的推理過程後，再根據輸出規格格式給予適當輸出。
             """
         self.task_description_prompt = "請利用桌面上的掃把與畚箕，將桌上掃乾淨。"
@@ -177,7 +179,7 @@ class GPTPlanner:
             "object_angle: 20 deg"
             "pick_mode: down"
 
-            "object_name: trash"
+            "object_name: rice food"
             "object_index: 2"
             "object_position: px=310mm, py=0mm, pz=-300mm"
             "object_angle: 0 deg"
@@ -186,7 +188,8 @@ class GPTPlanner:
         
         self.environment_context_prompt = (
             "掃把與畚箕平躺在桌面上，pick_mode = down"
-            "垃圾平躺在桌上，要清掃起來而非抓取"
+            "米飯平躺在桌上，要清掃起來而非抓取"
+            "不要再去拍米飯"
             
             
             # "垃圾範圍: x: 290 ~ 320mm, py= 15 ~ -15mm"
@@ -217,11 +220,11 @@ class GPTPlanner:
         )
         self.safety_constraints_prompt = (
         
-            "物品y座標大於20，使用左手手臂抓取，物品y座標小於-20，使用右手手臂抓取。"
-            "物品y座標介於-20到20之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
+            "物品y座標大於 10，使用左手手臂抓取，物品y座標小於-10，使用右手手臂抓取。"
+            "物品y座標介於-10到10之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
         )
         self.task_planning_profile_prompt = (
-            "歷史任務規劃紀錄: "
+            "任務規劃範例: "
             "==============================="
             "任務: 使用掃把與畚箕清理桌面"
             "動作規劃: "
@@ -424,7 +427,7 @@ class GPTPlanner:
         if self.safety_constraints_prompt:
             self.sections.append(f"## 安全限制\n{self.safety_constraints_prompt}")
         if self.task_planning_profile_prompt:
-            self.sections.append(f"## 任務規劃檔案\n{self.task_planning_profile_prompt}")
+            self.sections.append(f"## 任務規劃範例\n{self.task_planning_profile_prompt}")
         if self.output_format_prompt:
             self.sections.append(f"## 輸出格式\n{self.output_format_prompt}")
 
