@@ -326,7 +326,7 @@ void RightArm::Angle_adjust(double ox_deg, double oy_deg, double oz_deg, bool mo
                 safe_joints(4) = 20.0 * M_PI / 180.0; // 強制將第 5 軸歸20度 (rad)
             }
 
-            safe_joints(5) = 35.0 * M_PI / 180.0; // 強制將第 6 軸歸30度 (rad)
+            safe_joints(5) = 100.0 * M_PI / 180.0; // 強制將第 6 軸歸100度 (rad)
             
             
             double speed = 0.005; // 設定回歸速度 0.001rad/s = 0.057deg/s

@@ -464,7 +464,7 @@ class RobotExecutor:
         gripper_length = 23.5 #30   24    
         brush_length = 110  # 掃把握柄中心到尾端長度為125 105mm
         dustpan_length = 195  # 畚箕長度+距離offset假設為170 190 210 200mm
-        brush_dis_offset = 60 #40 #55
+        brush_dis_offset = 75 #40 #55 # 60 # 掃把距離米的offset距離
        
         LandR_dis = 125
         robot_control.neck_control(0, 45)
@@ -561,12 +561,12 @@ class RobotExecutor:
                        
         else:
             sign = -1
-            side_angle=40
+            side_angle = 30 
             dustpan_height = shared_object.left[0]['3d_size'][2]
             if dustpan_height <30: #修改
                 dustpan_height = 32 
-            elif dustpan_height >35:  
-                dustpan_height -=2 
+            # elif dustpan_height >35:  
+            #     dustpan_height -=2 
             print(f"dustpan_height: {dustpan_height}") 
             print(f"longest_length: {shared_object.right[0]['longest_length']}")
             brush_length= shared_object.right[0]['longest_length']-18 # 15 17 20 #20 #25
@@ -730,41 +730,41 @@ class RobotExecutor:
         else:
             raise ValueError(f"未知的動作類型: {step.action_type}")
     
-    # def execute_plan(self, robot_plan: RobotPlan):
-    #     """
-    #     執行完整計畫
-    #     依據雙手協調邏輯執行所有步驟
-    #     """
-    #     print(f"\n開始執行任務: {robot_plan.task_description}")
-    #     print("=" * 60)
+    def execute_plan(self, robot_plan: RobotPlan):
+        """
+        執行完整計畫
+        依據雙手協調邏輯執行所有步驟
+        """
+        print(f"\n開始執行任務: {robot_plan.task_description}")
+        print("=" * 60)
         
-    #     # 方案 B: 交錯執行（根據 step_id 排序）
-    #     all_steps = []
-    #     for step in robot_plan.left_arm:
-    #         all_steps.append(step)
-    #     for step in robot_plan.right_arm:
-    #         all_steps.append(step)
-    #     all_steps.sort(key=lambda s: s.step_id)
-    #     # --- 新增邏輯: 過濾重複的 SWEEP ---
-    #     final_steps = []
-    #     seen_sweep_ids = set()  # 用來記錄哪些 step_id 已經有掃地動作了
+        # 方案 B: 交錯執行（根據 step_id 排序）
+        all_steps = []
+        for step in robot_plan.left_arm:
+            all_steps.append(step)
+        for step in robot_plan.right_arm:
+            all_steps.append(step)
+        all_steps.sort(key=lambda s: s.step_id)
+        # --- 新增邏輯: 過濾重複的 SWEEP ---
+        final_steps = []
+        seen_sweep_ids = set()  # 用來記錄哪些 step_id 已經有掃地動作了
 
-    #     for step in all_steps:
-    #         if step.action_type == ActionType.SWEEP:
-    #             # 如果這個 step_id 已經被記錄過有 SWEEP，就跳過這次 (去重)
-    #             if step.step_id in seen_sweep_ids:
-    #                 continue
-    #             # 否則將此 step_id 加入已見集合
-    #             seen_sweep_ids.add(step.step_id)
+        for step in all_steps:
+            if step.action_type == ActionType.SWEEP:
+                # 如果這個 step_id 已經被記錄過有 SWEEP，就跳過這次 (去重)
+                if step.step_id in seen_sweep_ids:
+                    continue
+                # 否則將此 step_id 加入已見集合
+                seen_sweep_ids.add(step.step_id)
             
-    #         final_steps.append(step)
+            final_steps.append(step)
             
-    #     all_steps = final_steps
-    #     # --------------------------------
-    #     for step in all_steps:
-    #         print(f"\n步驟 {step.step_id} [{step.arm.value}]: {step.action_type.value}")
+        all_steps = final_steps
+        # --------------------------------
+        for step in all_steps:
+            print(f"\n步驟 {step.step_id} [{step.arm.value}]: {step.action_type.value}")
 
-    #         self.execute_step(step)
+            self.execute_step(step)
             # while True:
             #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
             #     if user_input == "1":
@@ -778,91 +778,91 @@ class RobotExecutor:
             #         print("⚠ 請輸入 1 或 q")
 
 
-    def execute_plan(self, robot_plan: RobotPlan):
-        """
-        執行完整計畫
-        自動偵測連續的 pick/place 動作並並行執行（如果是不同手臂）
-        """
-        print(f"\n開始執行任務: {robot_plan.task_description}")
-        print("=" * 60)
+    # def execute_plan(self, robot_plan: RobotPlan):
+    #     """
+    #     執行完整計畫
+    #     自動偵測連續的 pick/place 動作並並行執行（如果是不同手臂）
+    #     """
+    #     print(f"\n開始執行任務: {robot_plan.task_description}")
+    #     print("=" * 60)
         
-        # 合併並排序所有步驟
-        all_steps = []
-        for step in robot_plan.left_arm:
-            all_steps.append(step)
-        for step in robot_plan.right_arm:
-            all_steps.append(step)
-        all_steps.sort(key=lambda s: s.step_id)
+    #     # 合併並排序所有步驟
+    #     all_steps = []
+    #     for step in robot_plan.left_arm:
+    #         all_steps.append(step)
+    #     for step in robot_plan.right_arm:
+    #         all_steps.append(step)
+    #     all_steps.sort(key=lambda s: s.step_id)
         
-        # 過濾重複的 SWEEP
-        final_steps = []
-        seen_sweep_ids = set()
-        for step in all_steps:
-            if step.action_type == ActionType.SWEEP:
-                if step.step_id in seen_sweep_ids:
-                    continue
-                seen_sweep_ids.add(step.step_id)
-            final_steps.append(step)
+    #     # 過濾重複的 SWEEP
+    #     final_steps = []
+    #     seen_sweep_ids = set()
+    #     for step in all_steps:
+    #         if step.action_type == ActionType.SWEEP:
+    #             if step.step_id in seen_sweep_ids:
+    #                 continue
+    #             seen_sweep_ids.add(step.step_id)
+    #         final_steps.append(step)
         
-        all_steps = final_steps
+    #     all_steps = final_steps
         
-        # 執行步驟（支援並行）
-        i = 0
-        while i < len(all_steps):
-            current_step = all_steps[i]
+    #     # 執行步驟（支援並行）
+    #     i = 0
+    #     while i < len(all_steps):
+    #         current_step = all_steps[i]
             
-            # 檢查下一步是否可以並行執行
-            if i + 1 < len(all_steps):
-                next_step = all_steps[i + 1]
+    #         # 檢查下一步是否可以並行執行
+    #         if i + 1 < len(all_steps):
+    #             next_step = all_steps[i + 1]
                 
-                # 條件：連續兩步都是 pick 或 place，且使用不同手臂
-                if self._can_execute_parallel(current_step, next_step):
-                    print(f"\n🔄 並行執行步驟 {current_step.step_id} 和 {next_step.step_id}")
-                    print(f"   [{current_step.arm.value}]: {current_step.action_type.value}")
-                    print(f"   [{next_step.arm.value}]: {next_step.action_type.value}")
-                    time.sleep(15) #等待相機辨識完全
-                    # 建立兩個執行緒
-                    thread1 = threading.Thread(
-                        target=self.execute_step, 
-                        args=(current_step,)
-                    )
-                    thread2 = threading.Thread(
-                        target=self.execute_step, 
-                        args=(next_step,)
-                    )
+    #             # 條件：連續兩步都是 pick 或 place，且使用不同手臂
+    #             if self._can_execute_parallel(current_step, next_step):
+    #                 print(f"\n🔄 並行執行步驟 {current_step.step_id} 和 {next_step.step_id}")
+    #                 print(f"   [{current_step.arm.value}]: {current_step.action_type.value}")
+    #                 print(f"   [{next_step.arm.value}]: {next_step.action_type.value}")
+    #                 time.sleep(15) #等待相機辨識完全
+    #                 # 建立兩個執行緒
+    #                 thread1 = threading.Thread(
+    #                     target=self.execute_step, 
+    #                     args=(current_step,)
+    #                 )
+    #                 thread2 = threading.Thread(
+    #                     target=self.execute_step, 
+    #                     args=(next_step,)
+    #                 )
                     
-                    # 同時啟動
-                    thread1.start()
-                    thread2.start()
+    #                 # 同時啟動
+    #                 thread1.start()
+    #                 thread2.start()
                     
-                    # 等待兩個都完成
-                    thread1.join()
-                    thread2.join()
+    #                 # 等待兩個都完成
+    #                 thread1.join()
+    #                 thread2.join()
                     
-                    print(f"✓ 步驟 {current_step.step_id} 和 {next_step.step_id} 完成")
+    #                 print(f"✓ 步驟 {current_step.step_id} 和 {next_step.step_id} 完成")
                     
-                    # 跳過下一步（因為已經執行了）
-                    i += 2
-                else:
-                    # 不能並行，單獨執行當前步驟
-                    print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
-                    while True:
-                        user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-                        if user_input == "1":
-                            print("✓ 繼續執行...")
-                            break
-                        elif user_input.lower() == "q":
-                            print("✗ 取消動作")
-                            exit()
-                        else:
-                            print("⚠ 請輸入 1 或 q")
-                    self.execute_step(current_step)
-                    i += 1
-            else:
-                # 最後一步，直接執行
-                print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
-                self.execute_step(current_step)
-                i += 1
+    #                 # 跳過下一步（因為已經執行了）
+    #                 i += 2
+    #             else:
+    #                 # 不能並行，單獨執行當前步驟
+    #                 print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
+    #                 while True:
+    #                     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+    #                     if user_input == "1":
+    #                         print("✓ 繼續執行...")
+    #                         break
+    #                     elif user_input.lower() == "q":
+    #                         print("✗ 取消動作")
+    #                         exit()
+    #                     else:
+    #                         print("⚠ 請輸入 1 或 q")
+    #                 self.execute_step(current_step)
+    #                 i += 1
+    #         else:
+    #             # 最後一步，直接執行
+    #             print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
+    #             self.execute_step(current_step)
+    #             i += 1
 
     def _can_execute_parallel(self, step1: ActionStep, step2: ActionStep) -> bool:
         """
@@ -926,25 +926,27 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
     print("開始測試...")
     shared_object.head_camera_ready = True
     # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-    #             time.sleep(2)
-    #             # robot_control.single_move("left", 300, 130, -130 , "side", 160)
-    #             # robot_control.open_gripper("left")
-    #             robot_control.single_move("left", 400,  115, -300, "down", 10) #-350
-    #             # robot_control.close_gripper("left")
-    #             # robot_control.single_move("left", 250, 130, -250 , "down", -90) #-350
-    #             # robot_control.single_move("right", 480, -350, -300 , "side", 50) #-350
-    #             # robot_control.close_gripper("right")
-    #             # robot_control.capture_publisher("right")
-    #             # robot_control.single_move("right", 480, -350, -300 , "side", 50)
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
+            # user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            # if user_input == "1":
+            #     print("✓ 繼續執行...")
+            #     time.sleep(3)
+            #     # robot_control.single_move("left", 300, 130, -130 , "side", 160)
+            #     # robot_control.open_gripper("left")
+            #     # robot_control.single_move("left", 400,  115, -300, "down", 10) #-350
+            #     # robot_control.close_gripper("left")
+            #     # robot_control.single_move("left", 250, 130, -250 , "down", -90) #-350
+            #     # robot_control.single_move("right", 480, -350, -300 , "side", 50) #-350
+            #     # robot_control.close_gripper("right")
+            #     # robot_control.capture_publisher("right")
+            #     robot_control.single_move("right", 400, -150, -130 , "side", 30)
+            #     # robot_control.single_move("right", 300, -130, -220 , "side", 30)
+            #     # robot_control.single_move("right", 300, -190, -200 , "down", 90)
+            #     break 
+            # elif user_input.lower() == "q":
+            #     print("✗ 取消動作")
+            #     exit()
+            # else:
+            #     print("⚠ 請輸入 1 或 q")
     
     # # # 7. 完整計畫測試
     get_env_info()
@@ -977,3 +979,4 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
         executor.execute_plan(robot_plan)
 
     rospy.spin()
+

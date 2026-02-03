@@ -173,17 +173,21 @@ void Robot::GripperController(std::string arm, float angle)
 
 void Robot::refineGripper_thread(std::string arm, float adjustment, double angle)
 {
-    std::thread ArmThread([this, arm, adjustment]() {
-        refineGripperPosition(arm, adjustment);
-    });
-    ArmThread.join();
-    // 這裡可以加一點延遲，確保手臂穩定
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // (夾爪角度)
-    std::thread gripperThread([this, arm, angle]() {
-        GripperController(arm, angle);
-    });
-    gripperThread.join();  
+    // std::thread ArmThread([this, arm, adjustment]() {
+    //     refineGripperPosition(arm, adjustment);
+    // });
+    // ArmThread.join();
+    // // 這裡可以加一點延遲，確保手臂穩定
+    // std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // // (夾爪角度)
+    // std::thread gripperThread([this, arm, angle]() {
+    //     GripperController(arm, angle);
+    // });
+    // gripperThread.join();  
+    // std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    refineGripperPosition(arm, adjustment);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    GripperController(arm, angle);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
 }
