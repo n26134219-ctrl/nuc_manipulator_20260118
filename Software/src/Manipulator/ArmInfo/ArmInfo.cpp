@@ -265,7 +265,7 @@ Vector3d ArmInfo::computeRetreatAlongZ(double retreat_distance_mm) {
     return new_position;
 }
 bool ArmInfo:: check_pick_mode_change(std::string mode) {
-    if (mode != pick_type) {
+    if (mode != pick_type && (mode == "down" || pick_type == "down")) {
         std::cout << "\t[INFO] Pick mode changed from " << pick_type << " to " << mode << std::endl;
         return true;
     }else {
@@ -332,8 +332,11 @@ ArmInfo::getPickTypePose(const std::string& arm,
             ori = Vector3d(-180,0,-90);
             
         }
-        else if (ptype=="reversal"){
-            ori=Vector3d(-170,0,178);
+        else if (ptype=="side_reversal"){
+           
+            ori = Vector3d(-180, 40, 0);
+            
+            if (angle<=180 && angle >=0)  ori.z() = angle;
             
         }
         else if (ptype == "side_down"){
@@ -370,8 +373,11 @@ ArmInfo::getPickTypePose(const std::string& arm,
             ori=Vector3d(0,180,90);
             
         }
-        else if (ptype=="reversal"){
+        else if (ptype=="side_reversal"){
             ori=Vector3d(0,180,180);
+            ori = Vector3d(0,140, 0);
+            
+            if (angle<=180 && angle >=0)  ori.z() = -angle;
             
         }
         else if (ptype == "side_down"){

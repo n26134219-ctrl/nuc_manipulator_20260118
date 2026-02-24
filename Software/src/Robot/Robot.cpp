@@ -93,7 +93,7 @@ void Robot::synchronizeMove(double X, double Y, double Z, std::string pick_mode,
     // 等待兩個執行緒都完成
     rightThread.join();
     leftThread.join();
-    Action_Done_Callback("Done");
+   
 }
 
 
@@ -308,6 +308,7 @@ void Robot::commandCallback(const std_msgs::String::ConstPtr& msg)
             ROS_INFO("synchronize_move: x=%.2f, y=%.2f, z=%.2f", x, y, z);
             std::this_thread::sleep_for(std::chrono::seconds(1));
             synchronizeMove(x, y, z, pick_mode, object_width);
+            Action_Done_Callback("Done");
             
         } else if (action == "single_move") {
             // 處理單一移動命令

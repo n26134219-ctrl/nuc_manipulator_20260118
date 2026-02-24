@@ -51,6 +51,8 @@ class CommandPublisher:
             commands = ["capture_left"]
         elif command == "right":
             commands = ["capture_right"]
+        elif command == "close":
+            commands = ["close_cameras"]
         else:
             rospy.logwarn(f"未知相機指令: {command}")
             return
@@ -264,15 +266,26 @@ class CommandPublisher:
             self.single_move(arm, x, y + sign * size[0]/2, z, pick_mode, angle)
             self.open_gripper(arm)
             self.single_move(arm, x, y + sign * size[0]/2, z + 100, pick_mode, angle)
-        
-    
+        elif pick_mode == "side_reversal":
+            place_height_offset = 60
+            self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, 0)
+            self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, angle)
+            self.single_move(arm, x, y , z + place_height_offset, pick_mode, angle)
+            self.close_gripper_ang(arm, 100)
+            self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, angle) # size編號？？
+            self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, 0) 
+            self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
     def single_arm_pick(self, x, y, z, pick_mode, size, angle, arm):
         if arm == "left":
             sign = 1
             offset= 0
+            init_angle = 150
         elif arm == "right":
             sign = -1
             offset= 0
+            init_angle = 30
+        
+            
         if pick_mode == "down":
 
             
@@ -297,12 +310,14 @@ class CommandPublisher:
 
         elif pick_mode == "side":
             self.single_move(arm, x, y + sign * 120, z, pick_mode, angle)
-            time.sleep(1)
-            self.single_move(arm, x, y + sign * size[0]/2, z, pick_mode, angle)
-            time.sleep(1)
+           
+            self.single_move(arm, x, y , z, pick_mode, angle)
+          
             self.close_gripper(arm)
-            time.sleep(1)
-            self.single_move(arm, x, y + sign * size[0]/2, z + 120, pick_mode, angle)
+         
+            self.single_move(arm, 420, y , z + 50, pick_mode, angle)
+            # self.single_move(arm, 400, y , -130, pick_mode, angle)
+            self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
 
     def initial_position(self):
     
