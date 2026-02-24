@@ -923,8 +923,6 @@ class RobotExecutor:
 
 def generate_task_plan():
     global GPT_planner
-    
-   
     while True:
         robot_plan = GPT_planner.task_planning()    
         print("生成的計畫:")
@@ -1016,3 +1014,7 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
 
 #     rospy.spin()
 
+# 做早餐任務測試流程：
+# gpt 更動
+# camera_更動prompt 
+# 動作規劃更動
