@@ -113,7 +113,7 @@ def task_explanation_callback(msg):
     GPT_planner.task_description_prompt = msg.data
     rospy.loginfo(f"收到任務說明: {GPT_planner.task_description_prompt}")
 
-def camera_ready_callback(msg):
+def camera_ready_callback(msg): # camera propmt更新會觸發
     global shared_object
     """接收並處理相機準備狀態"""
     state = msg.data
@@ -130,6 +130,12 @@ def task_type_callback(msg):
     if category == "cleaning":
         get_env_info()
         update_camera_prompt()
+    elif category == "pick_pepper":
+        get_pepper_info()
+        update_camera_prompt()
+    elif category == "prepare_sandwich":
+        get_sandwich_toast_info()
+        update_camera_prompt()
     robot_plan = generate_task_plan()
     while True:
             user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
@@ -144,6 +150,8 @@ def task_type_callback(msg):
                 print("⚠ 請輸入 1 或 q")
     if robot_plan:
         executor.execute_plan(robot_plan)
+
+
 
 def ros_sub_init():
     rospy.Subscriber('/camera/total_objects', String, total_objects_callback)
@@ -319,9 +327,86 @@ def search_dustpan_broom():
         if found_dustpan and found_brush:
             rospy.loginfo("✓ 成功找到掃把和畚箕")
             return True
+        else:
+            rospy.loginfo("未找到掃把或畚箕")
+            return False
     else:
         rospy.loginfo("未找到掃把或畚箕")
-        return False             
+        return False  
+
+def search_pepper_shaker(): 
+    found_pepper = False
+    robot_control.capture_publisher("head")
+    time.sleep(15)
+    if len(shared_object.total) > 0:
+        for index, obj in enumerate(shared_object.total):
+            if "pepper shaker" in obj['name']:
+                if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['3d_size'][2] >  300:
+                    rospy.loginfo("胡椒罐尺寸過大，無法拾取")
+                    return False
+                else:
+                    rospy.loginfo("✓ 成功找到胡椒罐")
+                    rospy.loginfo(f"找到胡椒罐，索引為: {index}")
+                    return True
+        
+    else:
+        rospy.loginfo("未找到胡椒罐")
+        return False    
+    
+
+def search_sandwish_toast():
+    found_sandwish = False
+    found_toast = False
+    robot_control.capture_publisher("head")
+    time.sleep(15)
+    if len(shared_object.total) > 0:
+        for index, obj in enumerate(shared_object.total):
+            if "toast " in obj['name']:
+                if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['3d_size'][2] >  300:
+                    rospy.loginfo("土司尺寸過大，無法拾取")
+                    return False
+                else:
+                    rospy.loginfo("✓ 成功找到土司")
+                    rospy.loginfo(f"找到土司，索引為: {index}")
+                    found_toast = True
+            if "sandwich" in obj['name']:
+                if obj['base_center_pos'][0] > 680 or abs(obj['base_center_pos'][1]) > 200:
+                    rospy.loginfo("三明治位置過遠，無法拾取")
+                    return False
+                else:
+                    rospy.loginfo("✓ 成功找到三明治")
+                    rospy.loginfo(f"找到三明治，索引為: {index}")
+                    found_sandwish = True
+        if found_sandwish and found_toast:
+            return True        
+        else:
+            rospy.loginfo("未找到三明與土司")
+            return False
+    else:
+        rospy.loginfo("未找到三明治與土司")
+        return False
+
+def get_pepper_info():
+    global shared_object
+    update_search_phrase(["pepper shaker"]) 
+    robot_control.initial_position()
+    robot_control.neck_control(0, 30)
+    
+    if shared_object.head_camera_ready == True:
+        while search_pepper_shaker() == False:
+            robot_control.neck_control(0, 30)
+    time.sleep(2)
+    shared_object.head_camera_ready = False
+def get_sandwich_toast_info():
+    global shared_object
+    update_search_phrase(["sandwich", "toast"]) 
+    robot_control.initial_position()
+    robot_control.neck_control(0, 40)
+    if shared_object.head_camera_ready == True:
+        while search_sandwish_toast() == False:
+            robot_control.neck_control(0, 30)
+    time.sleep(2)
+    shared_object.head_camera_ready = False
 def get_env_info():
     global shared_object
     robot_control.initial_position()
@@ -429,6 +514,8 @@ class RobotExecutor:
             object = shared_object.left[0]
         elif arm == "right":
             object = shared_object.right[0]
+        if object == None:
+            object = shared_object.total[0]    
         object_pos = object.get('base_center_pos', None)
         pick_mode = object.get('pick_mode', None)
         size = object.get('3d_size', None)
@@ -450,12 +537,24 @@ class RobotExecutor:
                     self.active_arm = "right"
                     self.auxiliary_arm = "left"
                 handle_size = [size[0], size[1], size[2]]
-                 
+            
+
+            if object_name == 'pepper shaker':
+                if arm == "right":
+                    self.active_arm = "right"
+                    self.auxiliary_arm = "left"
+                    angle = 30
+                else:
+                    self.active_arm = "left"
+                    self.auxiliary_arm = "right"
+                    angle = 150
+                
             if object_name == 'brush tool' or object_name == 'dustpan tool':
                 print(f"抓取物品尺寸為: {handle_size}")
                 robot_control.single_arm_pick( object_pos[0], object_pos[1], object_pos[2], pick_mode, handle_size, angle, arm)
             else:
                 robot_control.single_arm_pick( object_pos[0], object_pos[1], object_pos[2], pick_mode, size, angle, arm)
+
 
             
    
@@ -712,7 +811,110 @@ class RobotExecutor:
         robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*10)# [修改]
         robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*90)
         
+    def sprinkle_pepper(self, arm: str):
+        robot_control.capture_publisher("close")
+         """執行撒胡椒粉動作"""
+        print("執行撒胡椒粉動作")
+        yaw_angle = math.radians(40)
+        if arm == "left":
+            sign = 1
+        elif arm == "right":
+            sign = -1
+        for object in shared_object.total:
+            # name = object['name']
+            name = object.get('name', 'unknown')
+            if name == 'sandwish' or (isinstance(name, list) and 'sandwish' in name):
+                size = object.get('3d_size', None)
+                
+                left_pos = object.get('left_base_pos', None)
+                right_pos = object.get('right_base_pos', None)
+                center_pos = object.get('base_center_pos', None)
+                print(f"找到三明治，中心位置: {center_pos}，左位置: {left_pos}, 右位置： {right_pos}")
+                
+                print(f"三明治尺寸為: {size}")
+            if name == 'pepper shaker' or (isinstance(name, list) and 'pepper shaker' in name):
+                pepper_size = object.get('3d_size', None)
+                print(f"胡椒粉尺寸為: {pepper_size}")
+        
+        
+        offset_height = 80
+        move_dis = 50
+        pepper_height = pepper_size[2]
+        print(f"胡椒粉高度為: {pepper_height}")
+        
+        height_pos = [center_pos[0]+pepper_height/2*math.sin(yaw_angle), center_pos[1]+sign*pepper_height/2*math.cos(yaw_angle), center_pos[2]+offset_height+move_dis]
+        print(f"灑胡椒粉高處位置: {height_pos}")
+        
+        low_pos = [center_pos[0], center_pos[1], center_pos[2]+offset_height]
+
+        
+        # easy demo: move arm to pepper position and sprinkle
+        robot_control.single_move(arm, center_pos[0], center_pos[1], center_pos[2]+offset_height+move_dis, "side_reversal", 0)
+        
+        robot_control.single_move(arm, height_pos[0], height_pos[1] , center_pos[2], "side_reversal", 90)
+        robot_control.single_move(arm, low_pos[0], low_pos[1] , low_pos[2], "side_reversal", 150)
+
+        robot_control.single_move(arm, height_pos[0], height_pos[1] , center_pos[2], "side_reversal", 90)
+        robot_control.single_move(arm, low_pos[0], low_pos[1] , low_pos[2], "side_reversal", 150)
+
+        robot_control.single_move(arm, low_pos[0], low_pos[1] , low_pos[2], "side_reversal", 30)
+        robot_control.single_arm_initial_position(arm)
+
+
+
+    def close_sandwich(self, arm: str):
+        if arm == "left":
+            sign = 1   
+        elif arm == "right":
+            sign = -1
+        for object in shared_object.total:
+            # name = object['name']
+            name = object.get('name', 'unknown')
+            if name == 'sandwish' or (isinstance(name, list) and 'sandwish' in name):
+                size = object.get('3d_size', None)
+                left_pos = object.get('left_base_pos', None)
+                right_pos = object.get('right_base_pos', None)
+                center_pos = object.get('base_center_pos', None)
+                angle = object.get('angle', 0)
+                print(f"找到三明治，中心位置: {center_pos}，左位置: {left_pos}, 右位置： {right_pos}")
+                print(f"三明治尺寸為: {size}")
+        offset_height = size[2]
+        gripper_length = 23.5
+        dis_to_move = offset_height + gripper_length
+        # 危險區域角度
+        if angle >=90:
+            if arm == "right":
+                angle = 10
+                theta =  math.radians(10)
+            else:
+                theta =  math.radians(angle - 90)
+        else:
+            if arm == "left":
+                angle = 170
+                theta =  math.radians(10)
+            else: 
+                theta = math.radians(angle)
+        leave_pos = [center_pos[0] - dis_to_move * math.sin(theta), center_pos[1]+sign * dis_to_move * math.cos(theta), center_pos[2]+offset_height]
+        robot_control.single_move(arm, center_pos[0], center_pos[1], center_pos[2]+offset_height, "side", angle)
+
+        robot_control.single_move(arm, center_pos[0], center_pos[1], center_pos[2]+offset_height, "side_down", angle)
+        robot_control.close_gripper_ang(arm, 100)
+
+        robot_control.single_move(arm, leave_pos[0], leave_pos[1], leave_pos[2], "side_down", angle)
+
+        
+        robot_control.single_move(arm, leave_pos[0], leave_pos[1], leave_pos[2], "side", angle)
+
+        robot_control.single_arm_initial_position(arm)
+
+
+        
+
+
+
+
     
+
     def place(self, object_index: int, mode: str, angle: float, arm: str):
         print(f"[{arm}] 放置物品 {object_index}，模式: {mode}，角度: {angle}")
         robot_control.neck_control(0, 76)
@@ -720,6 +922,8 @@ class RobotExecutor:
             object = shared_object.left[0]
         elif arm == "right":
             object = shared_object.right[0]
+        if object == None:
+            object = shared_object.total[0]
         object_pos = object.get('base_center_pos', None)
         pick_mode = object.get('pick_mode', None)
         size = object.get('3d_size', None)
@@ -733,6 +937,11 @@ class RobotExecutor:
         if object_pos and pick_mode and size:
             robot_control.single_arm_place(object_pos[0], object_pos[1], object_pos[2], pick_mode, size, angle, arm)
         
+
+
+
+
+
     # === 執行引擎 ===
     
     def execute_step(self, step: ActionStep):
@@ -1015,6 +1224,11 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
 #     rospy.spin()
 
 # 做早餐任務測試流程：
-# gpt 更動
+# camera search_pepper_shaker
+
+# update task_name & type(pick pepper shaker)-> get_pepper_info ->search_pepper_shaker -> update prompt -> gpt planning -> execute plan
+# update task_name & type（prepare sandwish) -> get_sandwich_toast_info ->search sandwish && toast(bread) -> update prompt(手上已有胡椒粉) -> gpt planning -> execute plan
+
 # camera_更動prompt 
+
 # 動作規劃更動

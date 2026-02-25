@@ -340,15 +340,13 @@ ArmInfo::getPickTypePose(const std::string& arm,
             
         }
         else if (ptype == "side_down"){
-            ori = Vector3d(-180, 0, 0);
-            double down_angle = angle;
-            if (angle>=90 ) {
+            ori = Vector3d(-180, 0, 90);
+            if (angle>=90) {
                 double sup = 180-angle;
                 ori.y() = sup;
-                if (angle==90) outType="forward";
+                
             } else ori.y() = -angle;
-            if (angle>=90) down_angle = 180 -down_angle;
-            ori.x() =  abs(down_angle);
+
         }
     }
     else if(arm=="right"){
@@ -374,22 +372,18 @@ ArmInfo::getPickTypePose(const std::string& arm,
             
         }
         else if (ptype=="side_reversal"){
-            ori=Vector3d(0,180,180);
+            
             ori = Vector3d(0,140, 0);
             
             if (angle<=180 && angle >=0)  ori.z() = -angle;
             
         }
         else if (ptype == "side_down"){
-            double down_angle = angle;
-            ori=Vector3d(0,180,0);
+           
+            ori=Vector3d(0,180,-90);
             if(angle>90) ori.y()=-angle;
-            else if(0<=angle&&angle<=90) {
-                ori.y()=(180-angle);
-                if (angle==90) outType="forward";   
-            }else ori.y()=(-180+abs(angle));
-            if (angle>=90) down_angle = 180 -down_angle;
-            ori.x() = abs(down_angle);
+            else ori.y()=(180-angle);
+            
         }
     } else {
         cout<<"Unknown arm"<<endl;

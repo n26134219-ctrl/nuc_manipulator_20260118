@@ -266,32 +266,27 @@ class CommandPublisher:
             self.single_move(arm, x, y + sign * size[0]/2, z, pick_mode, angle)
             self.open_gripper(arm)
             self.single_move(arm, x, y + sign * size[0]/2, z + 100, pick_mode, angle)
-        elif pick_mode == "side_reversal":
-            place_height_offset = 60
-            self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, 0)
-            self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, angle)
-            self.single_move(arm, x, y , z + place_height_offset, pick_mode, angle)
-            self.close_gripper_ang(arm, 100)
-            self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, angle) # size編號？？
-            self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, 0) 
-            self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
+        # elif pick_mode == "side_reversal":
+        #     place_height_offset = 60
+        #     self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, 0)
+        #     self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, angle)
+        #     self.single_move(arm, x, y , z + place_height_offset, pick_mode, angle)
+        #     self.close_gripper_ang(arm, 100)
+        #     self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, angle)
+        #     self.single_move(arm, x, y + sign * size[0]/2, z + place_height_offset, pick_mode, 0) 
+        #     self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
     def single_arm_pick(self, x, y, z, pick_mode, size, angle, arm):
         if arm == "left":
             sign = 1
-            offset= 0
-            init_angle = 150
         elif arm == "right":
             sign = -1
-            offset= 0
-            init_angle = 30
-        
             
         if pick_mode == "down":
 
             
-            self.single_move(arm, x, y + offset, z + 100, pick_mode, angle)
+            self.single_move(arm, x, y , z + 100, pick_mode, angle)
            
-            self.single_move(arm, x, y + offset, z + size[2], pick_mode, angle)
+            self.single_move(arm, x, y , z + size[2], pick_mode, angle)
             # while True:
             #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
             #     if user_input == "1":
@@ -309,7 +304,13 @@ class CommandPublisher:
            
 
         elif pick_mode == "side":
-            self.single_move(arm, x, y + sign * 120, z, pick_mode, angle)
+            if angle >= 90:
+                theta = angle - 90
+            else:
+                theta = angle
+
+            distance = 120
+            self.single_move(arm, x - distance * math.sin(math.radians(theta)), y + sign * distance * math.cos(math.radians(theta)), z, pick_mode, angle)
            
             self.single_move(arm, x, y , z, pick_mode, angle)
           
@@ -317,10 +318,16 @@ class CommandPublisher:
          
             self.single_move(arm, 420, y , z + 50, pick_mode, angle)
             # self.single_move(arm, 400, y , -130, pick_mode, angle)
-            self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
+            self.single_arm_initial_position(arm)
 
     def initial_position(self):
     
         self.dual_move( 420, 120, -130, "side", 150, 420, -120, -130, "side", 30)
         self.neck_control(0, 76)
+        
+    def single_arm_initial_position(self, arm):
+        if arm == "left":
+            self.single_move("left", 400, 150, -130, "side", 150)
+        elif arm == "right":
+            self.single_move("right", 400, -150, -130, "side", 30)
         
