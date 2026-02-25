@@ -1228,7 +1228,8 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
 
 # update task_name & type(pick pepper shaker)-> get_pepper_info ->search_pepper_shaker -> update prompt -> gpt planning -> execute plan
 # update task_name & type（prepare sandwish) -> get_sandwich_toast_info ->search sandwish && toast(bread) -> update prompt(手上已有胡椒粉) -> gpt planning -> execute plan
-
-# camera_更動prompt 
+# pick 地方可要在改一下
+# update prompt 開始
+# 可以是一下基本動作
 
 # 動作規劃更動
