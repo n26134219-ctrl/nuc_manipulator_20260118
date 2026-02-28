@@ -37,6 +37,14 @@ class SharedObject:
         self.head_camera_ready = False
         self.left_camera_ready = False
         self.right_camera_ready = False
+    def record_pick(self, object_name, arm):
+        for obj in self.total:
+            if obj['name'] == object_name:
+                obj['status'] = f"{arm} arm is holding {object_name}"
+                update_camera_prompt()  # 更新提示詞以反映物品狀態變化
+                update_robot_status_prompt(arm)  # 更新機器人狀態提示詞
+                break
+        
 
 shared_object = SharedObject()
 
@@ -187,19 +195,47 @@ def update_camera_prompt():
         angle = obj['angle']
         pos = obj.get('base_center_pos', None)
         pick_mode = obj.get('pick_mode', "down")
+        status = obj.get('status', None)
         if pos:
             GPT_planner.camera_information_prompt += f"object_name: {name} \n"
             GPT_planner.camera_information_prompt += f"object_index: {idx} \n"
             GPT_planner.camera_information_prompt += f"object_position: px={pos[0]:.1f}mm, py={pos[1]:.1f}mm, pz={pos[2]:.1f}mm \n"
             GPT_planner.camera_information_prompt += f"object_angle: {angle:.1f} deg \n"
-            GPT_planner.camera_information_prompt += f"pick_mode: {pick_mode} \n\n"
+            GPT_planner.camera_information_prompt += f"pick_mode: {pick_mode} \n"
+            if status:
+                GPT_planner.camera_information_prompt += f"status: {status}\n\n"
+
 
     GPT_planner.camera_information_prompt += "===============================\n"
             
     print("更新相機資訊提示詞:")
     print(GPT_planner.camera_information_prompt)
 
-
+def update_robot_status_prompt(arm):
+    global GPT_planner
+    if arm == "left":
+        GPT_planner.robot_status_prompt = (
+            "機器人狀態: \n"
+            "left arm: holding pepper shaker\n"
+            "right arm: empty\n"
+        )
+       
+    elif arm == "right":
+        GPT_planner.robot_status_prompt = (
+            "機器人狀態: \n"
+            "left arm: empty\n"
+            "right arm: holding pepper shaker\n"
+        )
+    else:
+        GPT_planner.robot_status_prompt = (
+            "機器人狀態: \n"
+            "left arm: empty\n"
+            "right arm: empty\n"
+        )
+        
+    print("更新機器人狀態提示詞:")
+    print(GPT_planner.robot_status_prompt)
+    
         
 def draw_back_hands():
     time.sleep(3)
@@ -503,24 +539,32 @@ class RobotExecutor:
             #                     break
                 
 
-
-    
-    
-
-    # def pick(self, object_index: int, pick_mode: str, angle: float, arm: str):
-    def pick(self, arm: str):
+    def pick(self, arm: str, object_name: str):
         # get object information
+        find_object = False
         if arm == "left":
             object = shared_object.left[0]
+            object_name = object.get('name', None)
+            find_object = True
         elif arm == "right":
             object = shared_object.right[0]
+            object_name = object.get('name', None)
+            find_object = True
+        
         if object == None:
-            object = shared_object.total[0]    
+            for obj in shared_object.total:
+                if obj['name'] == object_name:
+                    find_object = True
+                    object = obj
+                    break
+        if find_object == False:
+            rospy.loginfo(f"未找到物品 {object_name} 的資訊，無法執行抓取")
+            return       
         object_pos = object.get('base_center_pos', None)
         pick_mode = object.get('pick_mode', None)
         size = object.get('3d_size', None)
         angle = object.get('angle', 0)
-        object_name = object.get('name', 'unknown')
+        
         rospy.loginfo(f"[{arm}] 抓取物品 {object_name}，模式: {pick_mode}，角度: {angle}")
         
         if object_pos and pick_mode and size: 
@@ -554,7 +598,6 @@ class RobotExecutor:
                 robot_control.single_arm_pick( object_pos[0], object_pos[1], object_pos[2], pick_mode, handle_size, angle, arm)
             else:
                 robot_control.single_arm_pick( object_pos[0], object_pos[1], object_pos[2], pick_mode, size, angle, arm)
-
 
             
    
@@ -945,6 +988,7 @@ class RobotExecutor:
     # === 執行引擎 ===
     
     def execute_step(self, step: ActionStep):
+        global shared_object
         """
         執行單一步驟
         使用 ActionStep 物件直接提取參數，避免字串解析
@@ -956,8 +1000,9 @@ class RobotExecutor:
         
         elif step.action_type == ActionType.PICK:
             func = self.action_map["pick"]
-            func(step.arm.value)
-        
+            func(step.arm.value, step.object_name)
+            if step.object_name == "pepper shaker":
+                shared_object.record_pick(step.object_name, step.arm.value)
         elif step.action_type == ActionType.SWEEP:
             func = self.action_map["sweep_the_table"]
             func()
@@ -1228,8 +1273,17 @@ if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不�
 
 # update task_name & type(pick pepper shaker)-> get_pepper_info ->search_pepper_shaker -> update prompt -> gpt planning -> execute plan
 # update task_name & type（prepare sandwish) -> get_sandwich_toast_info ->search sandwish && toast(bread) -> update prompt(手上已有胡椒粉) -> gpt planning -> execute plan
-# pick 地方可要在改一下
-# update prompt 開始
-# 可以是一下基本動作
+
+# plan_validator 開始 (掃地右手有時會忘記放置)  （更改三明治檢查動作）
+
+
+
+
+
+# 頭部角度 視覺prompt 視覺辨識測試 與  基本動作（禮拜二 三）
+# 整合測試（禮拜六 日 ....）
+
+
+
 
 # 動作規劃更動

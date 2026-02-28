@@ -18,7 +18,7 @@ from plan_validator import *
 def main():
     planner = GPTPlanner()
     # 1. 生成計畫
-
+    planner.task_description_prompt = "請使用桌上工具，清掃桌面"
     planner.camera_information_prompt = """object_name: dustpan tool 
     object_index: 0 
     object_position: px=261.5mm, py=145.6mm, pz=-302.3mm 
@@ -36,9 +36,73 @@ def main():
     object_position: px=471.6mm, py=68.1mm, pz=-284.5mm 
     object_angle: 175.4 deg 
     pick_mode: down """
-    robot_plan = planner.task_planning()
+
+    # planner.task_description_prompt = "請規劃一個機器人抓取胡椒粉罐動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side """
+
+    # planner.task_description_prompt = "請規劃一個機器人完成三明治動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side 
+    # status: right arm is holding pepper shaker
+
+    # object_name: toast
+    # object_index: 1
+    # object_position: px=580.0mm, py= 135.0mm, pz=-250.0mm
+    # object_angle: 48 deg
+    # pick_mode: side
+
+    # object_name: sandwich
+    # object_index: 2
+    # object_position: px=400.0mm, py=0.0mm, pz=-300.0mm
+    # object_angle: 30 deg
+    # pick_mode: down
+    # """
+    # planner.robot_status_prompt = (
+    #         "機器人狀態: \n"
+    #         "left arm: empty\n"
+    #         "right arm: holding pepper shaker\n"
+    # )
+
+    # planner.task_description_prompt = "請規劃一個機器人完成三明治動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side 
+    # status: left arm is holding pepper shaker
+
+    # object_name: toast
+    # object_index: 1
+    # object_position: px=580.0mm, py= -135.0mm, pz=-250.0mm
+    # object_angle: 48 deg
+    # pick_mode: side
+
+    # object_name: sandwich
+    # object_index: 2
+    # object_position: px=400.0mm, py=0.0mm, pz=-300.0mm
+    # object_angle: 30 deg
+    # pick_mode: down
+    # """
+    # planner.robot_status_prompt = (
+    #         "機器人狀態: \n"
+    #         "left arm: holding pepper shaker\n"
+    #         "right arm: empty\n"
+    # )
     
+    
+ 
+    robot_plan = planner.task_planning()
+   
     print("生成的計畫:")
+
+
     print(json.dumps(robot_plan.dict(), indent=2, ensure_ascii=False))
     
     # 2. 靜態驗證

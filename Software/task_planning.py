@@ -36,6 +36,9 @@ class ActionType(str, Enum):
     PICK = "pick"                                # 抓取動作
     SWEEP = "sweep_the_table"                    # 掃桌動作
     PLACE = "place"                              # 放置動作
+    SPRINKLE = "sprinkle_pepper"                 # 撒胡椒粉動作
+    CLOSE_SANDWICH = "close_sandwich"            # 合起三明治動作
+
 
 
 class PickMode(str, Enum):
@@ -76,6 +79,9 @@ class ActionStep(BaseModel):
     object_index: Optional[int] = Field(None, description="物體索引")
     # 某些動作（如 sweep）不需要物體索引，所以設為可選
     
+
+    object_name: str = Field(None, description="物品名稱")
+
     mode: Optional[PickMode] = Field(None, description="放置模式")
     # 只有  place 需要 mode，其他動作可為 None
     
@@ -102,8 +108,8 @@ class ActionStep(BaseModel):
             return f"arm_eyeInHand_camera_catch({self.object_index}, '{self.arm.value}')"
         
         elif self.action_type == ActionType.PICK:
-            # 抓取動作：需要手臂
-            return f"pick('{self.arm.value}')"
+            # 抓取動作：需要手臂和物品名稱
+            return f"pick('{self.arm.value}', '{self.object_name}')"
         
         elif self.action_type == ActionType.SWEEP:
             # 掃地動作：不需要額外參數
@@ -112,8 +118,12 @@ class ActionStep(BaseModel):
         elif self.action_type == ActionType.PLACE:
             # 放置動作：需要物體索引、模式、角度和手臂
             return f"place({self.object_index}, '{self.mode.value}', {self.angle}, '{self.arm.value}')"
-
-
+        elif self.action_type == ActionType.SPRINKLE:
+            # 撒胡椒粉動作：需要手臂
+            return f"sprinkle_pepper('{self.arm.value}')"
+        elif self.action_type == ActionType.CLOSE_SANDWICH:
+            # 合起三明治動作：需要手臂
+            return f"close_sandwich('{self.arm.value}')"
 class ArmPlan(BaseModel):
     """
     單臂動作計畫
@@ -159,10 +169,11 @@ class GPTPlanner:
             4. 生成的動作規劃都需要根據給予的資訊去規劃，不可自行生成未給予的資訊
             5. 根據任務規劃紀錄，如果有對應相同任務，可以參考內容去做調整，請勿完全抄襲，需根據實際任務需求與環境資訊去調整
             6. 參考輸出格式說明，產生對應格式輸出，請勿抄襲範例格式，需根據實際任務需求與環境資訊去調整
-            7. object_position 中的py 為正代表物品在機器人靠近左手區域，負值代表物品在機器人靠近右手區域，請根據此資訊分配手臂
-            8. 請勿抄襲範例
+            7. object_position 中的 py 為正代表物品在機器人靠近左手區域，負值代表物品在機器人靠近右手區域，請根據此資訊分配手臂
+            8. 請勿抄襲範例 ！
             請遵循給予的資訊去規劃，請勿自行生成未給予的資訊，並提供清晰的推理過程後，再根據輸出規格格式給予適當輸出。
             """
+        
         self.task_description_prompt = "請利用桌面上的掃把與畚箕，將桌上掃乾淨。"
 
         self.camera_information_prompt = (
@@ -185,84 +196,125 @@ class GPTPlanner:
             "object_angle: 0 deg"
             "==============================="
         )
-        
+        self.robot_status_prompt = (
+            "機器人狀態: \n"
+            "left arm: empty\n"
+            "right arm: empty\n"
+        )
         self.environment_context_prompt = (
-            "掃把與畚箕平躺在桌面上，pick_mode = down"
-            "米飯平躺在桌上，要清掃起來而非抓取"
-            "不要再去拍米飯"
+            "掃把與畚箕平躺在桌面上，pick_mode = down\n"
+            "米飯平躺在桌上，要清掃起來而非抓取\n"
+            "不要再去抓米飯或三明治 。\n"
+            "三明治放在參盤了，不要抓取\n"
+
+
+
             
             
             # "垃圾範圍: x: 290 ~ 320mm, py= 15 ~ -15mm"
         )
         self.action_description_prompt = (
-            "以下為可以使用的動作函式:"
+            "以下為可以使用的動作函式:\n"
 
-            "arm_eyeInHand_camera_catch(object_index, arm) "
-            "pick(object_index,string pick_mode, angle, arm)"
-            "sweep_the_table()"
-            "place(object_index,string place_mode, angle, arm)"
+            "arm_eyeInHand_camera_catch(object_index, arm) \n"
+            "pick(arm, object_name)\n"
+            "sweep_the_table()\n"
+            "place(object_index,string place_mode, angle, arm)\n"
+            "close_sandwich(arm)\n"
+            "sprinkle_pepper(arm)\n"
+            "======================================\n"
+            "以下為動作函式說明:\n"
+            "arm_eyeInHand_camera_catch(object_index, arm): 對應物品，分配對應手臂，讓手臂上相機再照一次，獲得準確物品資訊，更新物品資訊。【⛔嚴重警告：此函式「僅限」清掃任務(broom, dustpan)使用！製作三明治(toast)或抓取調味料時，絕對禁止呼叫此動作！】\n"
+            "object_index: 物體的索引，為數值。\n"
+            "object_index: 物體的索引，為數值。\n"
+            "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
 
-            "======================================"
-            "以下為動作函式說明:"
-            "arm_eyeInHand_camera_catch(object_index, arm): 對應物品，分配對應手臂，讓手臂上相機再照一次，獲得準確物品資訊，更新物品資訊。"
-            "object_index: 物體的索引，為數值。"
-            "arm: 指定使用的手臂，選項為 'left' 或 'right'。"
-
-            "pick( arm): 分配手臂執行抓取特定物品動作，arm為使用的手臂(left or right)。"
+            "pick(arm, object_name): 分配手臂執行抓取特定物品動作，arm為使用的手臂(left or right)，object_name為要抓取的物品名稱。\n"
+            "object_name : 要抓取的物品名稱，為字串(string)，例如 'broom' 或 'dustpan'。\n\n"
             
-            "sweep_the_table(): 執行掃桌動作。"
+            "sweep_the_table(): 執行掃桌動作。\n\n"
             
-            "place(object_index,string place_mode, angle, arm): 執行放置物品動作，object_index為物體索引，place_mode為放置模式，angle為手臂角度，arm為使用的手臂(left or right)。"
-            "object_index: 物體的索引，為數值。"
+            "place(object_index,string place_mode, angle, arm): 執行放置物品動作，object_index為物體索引，place_mode為放置模式，angle為手臂角度，arm為使用的手臂(left or right)。\n"
+            "object_index: 物體的索引，為數值。\n"
             "place_mode: 放置模式，為字串(string)，包含 'down' 表示夾爪向下方放置; 'side' 表示夾爪從物品側面放置; 'forward' 表示從夾爪向前方放置。共以上三種模式"
-            "angle: 物品角度，為數值。"
-            "arm: 指定使用的手臂，選項為 'left' 或 'right'。"
+            "angle: 物品角度，為數值。\n"
+            "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
+
+            "close_sandwich(arm): 執行合起三明治動作，arm為使用的手臂(left or right)。\n"
+            "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
+
+
+            "sprinkle_pepper(arm): 執行撒胡椒粉動作，arm為使用的手臂(left or right)。\n"
+            "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
+
+
         )
-        self.safety_constraints_prompt = (
+        # self.safety_constraints_prompt = (
         
-            "物品y座標大於 10，使用左手手臂抓取，物品y座標小於-10，使用右手手臂抓取。"
-            "物品y座標介於-10到10之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
+        #     "物品y座標大於 10，使用左手手臂抓取，物品y座標小於-10，使用右手手臂抓取。"
+        #     "物品y座標介於-10到10之間，根據物品角度，角度小於90度分配給左手，角度大於等於90度分配給右手。"
+        # )
+        self.safety_constraints_prompt = (
+            "【空間分配規則（嚴格執行）】\n"
+            "1. 物品y座標 (py) 大於 10，強制分配給「左手 (left)」執行動作。\n"
+            "2. 物品y座標 (py) 小於 -10，強制分配給「右手 (right)」執行動作。\n"
+            "3. 物品y座標介於 -10 到 10 之間，根據物品角度，小於 90 度分配給左手，大於等於 90 度分配給右手。\n\n"
+            
+            "【手臂狀態與物理限制（極重要）】\n"
+            "1. 抓取限制 (Pick Constraint)：規劃 `pick` 動作前，必須檢查「機器人狀態」。只有當該手臂為 `empty`（空閒）時才能執行 `pick`。若手臂狀態是 `holding`（已持有物品），絕對禁止用該手臂去 `pick` 其他物品！\n"
+            "2. 動作連貫性：若狀態顯示某隻手臂已持有特定物品（例如：holding pepper shaker），則該物品的相關操作（例如：sprinkle_pepper）必須直接由該手臂執行。\n"
+            "3. 每次規劃新物品的動作時，務必重新審查上述的「空間分配」與「手臂狀態」，不可為了方便而讓同一隻手臂違反物理規則做完所有事情。\n"
+            
+            "【視覺確認規則（重要限制）】\n"
+            "1. **限定使用：** 只有在執行「清掃任務」（需要抓取掃把 broom 或畚箕 dustpan）時，才必須在 `pick` 之前先執行 `arm_eyeInHand_camera_catch` 進行重新拍攝定位。\n"
+            "2. **禁止使用：** 若是執行製作三明治任務（抓取吐司 toast、胡椒粉 pepper shaker 等其他物品），**絕對不需要且禁止**在抓取前執行 `arm_eyeInHand_camera_catch`，請直接規劃 `pick` 動作即可。\n"
         )
         self.task_planning_profile_prompt = (
             "任務規劃範例: "
-            "==============================="
+            "=============================="
             "任務: 使用掃把與畚箕清理桌面"
             "動作規劃: "
             "left arm:"
             "Step 1. arm_eyeInHand_camera_catch(1, 'left')"
-            "Step 2. pick('left')"
+            "Step 2. pick('left', 'broom')"
             "Step 3. sweep_the_table()"
             "Step 4. place(1, 'down', 0, 'left')"
 
             "right arm:"
             "Step 1. arm_eyeInHand_camera_catch(0, 'right')"
-            "Step 2. pick('right')"
+            "Step 2. pick('right', 'dustpan')"
             "Step 3. sweep_the_table()"
             "Step 4. place(0, 'down', 10, 'right')"
             "==============================="
-        )
-        # self.output_format_prompt = (
-        #     "輸出格式: "
-        #     "1. 動作步驟需清楚標示每一步驟所使用的函式與參數"
-        #     "2. 輸出需使用提供相關物品的資訊與動作函式"
-        #     "3. 輸出需符合使用者的需求與期望"
-        #     "4. 請勿說明與解釋，僅輸出動作規劃步驟"
-        #     "輸出範例: "
-        #     "==============================="
-        #     "left arm:"
-        #     "Step 1. arm_eyeInHand_camera_catch(1, 'left')"
-        #     "Step 2. pick(1, 'down', 0, 'left')"
-        #     "Step 3. sweep_the_table()"
-        #     "Step 4. place(1, 'down', 0, 'left')"
+            "任務規劃範例二: "
+            "==============================="
+            "任務: 抓取胡椒粉"
+            "動作規劃: "
+            "left arm:"
+            "Step 1. pick('left', 'pepper shaker')"
+            "==============================="
+            "任務規劃範例三: "
+            "==============================="
+            "任務: 抓取胡椒粉"
+            "動作規劃: "
+            "right arm:"
+            "Step 1. pick('right', 'pepper shaker')"
+            "==============================="
+            "任務規劃範例四: "
+            "==============================="
+            "任務: 灑胡椒粉並將土司覆蓋三明治來完成製作三明治（假設左手已持有胡椒粉，右手空閒）"
+            "動作規劃: "
+            "left arm:"
+            "Step 1. sprinkle_pepper('left')"
+            
 
-        #     "right arm:"
-        #     "Step 1. arm_eyeInHand_camera_catch(0, 'right')"
-        #     "Step 2. pick(0, 'side', 10, 'right')"
-        #     "Step 3. sweep_the_table()"
-        #     "Step 4. place(0, 'down', 10, 'right')"
-        #     "==============================="
-        # )
-           # 修改輸出格式提示
+            "right arm:"
+            "Step 1. pick('right', 'toast')"
+            "Step 2. close_sandwich('right')"
+            "==============================="
+
+        )
+      
         
         self.output_format_prompt = (
             "## 輸出格式要求\n"
@@ -286,6 +338,7 @@ class GPTPlanner:
             "      \"mode\": \"<模式，可選，必須是: down, side, forward 之一>\",\n"
             "      \"angle\": <角度數值，可選，浮點數或整數>,\n"
             "      \"prerequisites\": [<前置步驟ID列表，整數陣列>]\n"
+            "      \"object_name\": \"<物品名稱，可選，某些動作需要>\",\n"
             "    }\n"
             "  ],\n"
             "  \"right_arm\": [\n"
@@ -297,6 +350,7 @@ class GPTPlanner:
             "      \"mode\": \"<模式>\",\n"
             "      \"angle\": <角度>,\n"
             "      \"prerequisites\": [<前置步驟ID列表>]\n"
+            "      \"object_name\": \"<物品名稱>\",\n"
             "    }\n"
             "  ]\n"
             "}\n"
@@ -328,6 +382,10 @@ class GPTPlanner:
             "  - place: 根據放置需求設定\n"
             "  - 其他動作不需要此欄位\n"
             "\n"
+            "- `object_name`: 物品名稱（字串），以下動作需要：\n"
+            "  - pick: 要抓取的物品名稱\n"
+            "  - 其他動作不需要此欄位\n"
+            "\n"
             "### 完整輸出範例\n"
             "\n"
             "**範例任務：使用掃把與畚箕清理桌面**\n"
@@ -347,6 +405,7 @@ class GPTPlanner:
             "      \"step_id\": 2,\n"
             "      \"action_type\": \"pick\",\n"
             "      \"arm\": \"left\",\n"
+            "      \"object_name\": \"broom\",\n"
             "      \"prerequisites\":[1] \n"
             "    },\n"
             "    {\n"
@@ -377,6 +436,7 @@ class GPTPlanner:
             "      \"step_id\": 2,\n"
             "      \"action_type\": \"pick\",\n"
             "      \"arm\": \"right\",\n"
+            "      \"object_name\": \"dustpan\",\n"
             "      \"prerequisites\":[1] \n"
             "    },\n"
             "    {\n"
@@ -397,6 +457,71 @@ class GPTPlanner:
             "  ]\n"
             "}\n"
             "```\n"
+            "**範例任務二：抓取胡椒粉**\n"
+            "\n"
+            "```json\n"
+            "{\n"
+            "  \"task_description\": \"抓取胡椒粉\",\n"
+            "  \"left_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"pick\",\n"
+            "      \"arm\": \"left\",\n"
+            "      \"object_name\": \"pepper shaker\",\n"
+            "      \"prerequisites\": []\n"
+            "    }\n"
+            "  ],\n"
+            "  \"right_arm\": []\n"
+            "}\n"
+            "```\n"
+            "**範例任務三：抓取胡椒粉**\n" 
+            "\n"
+            "```json\n"
+            "{\n"
+            "  \"task_description\": \"抓取胡椒粉\",\n"
+            "  \"left_arm\": [],\n"
+            "  \"right_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"pick\",\n"
+            "      \"arm\": \"right\",\n"
+            "      \"object_name\": \"pepper shaker\",\n"
+            "      \"prerequisites\": []\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```\n"
+            "**範例任務四：灑胡椒粉並將土司覆蓋三明治來完成製作三明治**\n"
+            "\n"
+            "```json\n"
+            "{\n"
+            "  \"task_description\": \"灑胡椒粉並將土司覆蓋三明治來完成製作三明治（假設左手已持有胡椒粉,右手空閒）\",\n"
+            "  \"left_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"sprinkle_pepper\",\n"
+            "      \"arm\": \"left\",\n"
+            "      \"prerequisites\": []\n"
+            "    }\n"
+            "  ],\n"
+            "  \"right_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"pick\",\n"
+            "      \"arm\": \"right\",\n"
+            "      \"object_name\": \"toast\",\n"
+            "      \"prerequisites\": []\n"
+            "    },\n"
+            "    {\n"
+            "      \"step_id\": 2,\n"
+            "      \"action_type\": \"close_sandwich\",\n"
+            "      \"arm\": \"right\",\n"
+            "      \"prerequisites\":[1] \n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+
+
             "\n"
             "### 重要提醒\n"
             "1. 請勿在 JSON 外包含任何文字說明\n"
@@ -406,6 +531,8 @@ class GPTPlanner:
             "5. prerequisites 必須是陣列，即使為空也要寫成 []\n"
             "6. 請根據實際的感測器資訊和任務需求調整參數，不要完全照抄範例\n"
             "7. 每個步驟的 arm 欄位必須與該計畫所屬的手臂一致（left_arm 中所有步驟的 arm 都是 \"left\"）\n"
+            "8. 請勿抄襲範例 ！根據實際任務需求與環境資訊去調整\n"
+            "9. object_position 中的 py 為正代表物品在機器人靠近左手區域，負值代表物品在機器人靠近右手區域，請根據此資訊分配手臂\n"
         )
 
         self.sections = []
@@ -428,12 +555,14 @@ class GPTPlanner:
             self.sections.append(f"## 安全限制\n{self.safety_constraints_prompt}")
         if self.task_planning_profile_prompt:
             self.sections.append(f"## 任務規劃範例\n{self.task_planning_profile_prompt}")
+        if self.robot_status_prompt:
+            self.sections.append(f"## 機器人狀態\n{self.robot_status_prompt}")
         if self.output_format_prompt:
             self.sections.append(f"## 輸出格式\n{self.output_format_prompt}")
 
         self.sections.append("## 執行要求\n請根據以上所有資訊，生成詳細的動作規劃。")
         self.user_content = "\n\n".join(self.sections)
-
+        # print(f"組合後的 User Prompt:\n{self.user_content}")
         return [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": self.user_content}
@@ -478,7 +607,7 @@ class GPTPlanner:
         )
 
         content = response.choices[0].message.content
-        
+     
         # 解析並驗證輸出
         try:
             plan_dict = json.loads(content) # 將 JSON 字串轉換為 Python 字典
