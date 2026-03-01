@@ -18,31 +18,31 @@ from plan_validator import *
 def main():
     planner = GPTPlanner()
     # 1. 生成計畫
-    planner.task_description_prompt = "請使用桌上工具，清掃桌面"
-    planner.camera_information_prompt = """object_name: dustpan tool 
-    object_index: 0 
-    object_position: px=261.5mm, py=145.6mm, pz=-302.3mm 
-    object_angle: 122.0 deg 
-    pick_mode: down 
-
-    object_name: brush tool 
-    object_index: 1 
-    object_position: px=280.6mm, py=-70.7mm, pz=-319.4mm 
-    object_angle: 20.3 deg 
-    pick_mode: down 
-
-    object_name: rice food 
-    object_index: 2 
-    object_position: px=471.6mm, py=68.1mm, pz=-284.5mm 
-    object_angle: 175.4 deg 
-    pick_mode: down """
-
-    # planner.task_description_prompt = "請規劃一個機器人抓取胡椒粉罐動作"
-    # planner.camera_information_prompt = """object_name: pepper shaker
+    # planner.task_description_prompt = "請使用桌上工具，清掃桌面"
+    # planner.camera_information_prompt = """object_name: dustpan tool 
     # object_index: 0 
-    # object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
-    # object_angle: 150 deg 
-    # pick_mode: side """
+    # object_position: px=261.5mm, py=145.6mm, pz=-302.3mm 
+    # object_angle: 122.0 deg 
+    # pick_mode: down 
+
+    # object_name: brush tool 
+    # object_index: 1 
+    # object_position: px=280.6mm, py=-70.7mm, pz=-319.4mm 
+    # object_angle: 20.3 deg 
+    # pick_mode: down 
+
+    # object_name: rice food 
+    # object_index: 2 
+    # object_position: px=471.6mm, py=68.1mm, pz=-284.5mm 
+    # object_angle: 175.4 deg 
+    # pick_mode: down """
+
+    planner.task_description_prompt = "請規劃一個機器人抓取胡椒粉罐動作"
+    planner.camera_information_prompt = """object_name: pepper shaker
+    object_index: 0 
+    object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
+    object_angle: 150 deg 
+    pick_mode: side """
 
     # planner.task_description_prompt = "請規劃一個機器人完成三明治動作"
     # planner.camera_information_prompt = """object_name: pepper shaker

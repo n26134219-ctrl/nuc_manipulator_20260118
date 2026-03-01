@@ -7,6 +7,7 @@ import time
 from geometry_msgs.msg import Point
 import os
 import threading
+import math
 robot_state = False
 last_done_count = 0
 new_done_count = 0
@@ -305,21 +306,67 @@ class CommandPublisher:
 
         elif pick_mode == "side":
             if angle >= 90:
-                theta = angle - 90
+                theta = 180 - angle
             else:
                 theta = angle
 
             distance = 120
+            # while True:
+            #     print(f"即將移動到: x={x - distance * math.sin(math.radians(theta))}, y={y + sign * distance * math.cos(math.radians(theta))}, z={z}")
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
             self.single_move(arm, x - distance * math.sin(math.radians(theta)), y + sign * distance * math.cos(math.radians(theta)), z, pick_mode, angle)
-           
+            # while True:
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
             self.single_move(arm, x, y , z, pick_mode, angle)
-          
-            self.close_gripper(arm)
-         
-            self.single_move(arm, 420, y , z + 50, pick_mode, angle)
-            # self.single_move(arm, 400, y , -130, pick_mode, angle)
-            self.single_arm_initial_position(arm)
 
+            self.close_gripper(arm)
+            # while True:
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
+            self.single_move(arm, 450, sign*150 , z + 80, pick_mode, angle)
+            # while True:
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
+            self.single_move(arm, 380, sign * 150 , z + 80, pick_mode, angle)
+            # self.single_move(arm, 380, y , z + 100, pick_mode, angle)
+            # self.single_move(arm, 400, y , -130, pick_mode, angle)
+            # self.single_arm_initial_position(arm)
+
+            # self.single_arm_draw_back(arm)
     def initial_position(self):
     
         self.dual_move( 420, 120, -130, "side", 150, 420, -120, -130, "side", 30)
@@ -330,4 +377,9 @@ class CommandPublisher:
             self.single_move("left", 400, 150, -130, "side", 150)
         elif arm == "right":
             self.single_move("right", 400, -150, -130, "side", 30)
+    def single_arm_draw_back(self, arm):
+        if arm == "left":
+            self.single_move("left", 266.3, 80, -230, "side", -10)
+        elif arm == "right":
+            self.single_move("right", 266.3, -80, -230, "side", 10)
         
