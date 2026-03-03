@@ -75,48 +75,6 @@ class PlanValidator:
                 self.errors.append(error)
                 self.total_penalty += error.severity
     
-    # def _check_prerequisites(self, steps: List[ActionStep], arm: str):
-    #     """檢查前提條件"""
-    #     held_objects = set()  # 記錄手上持有的物品
-        
-    #     for step in steps:
-    #         # 檢查 sweep_the_table 前是否有 pick 掃把
-    #         if step.action_type == ActionType.SWEEP:
-    #             # 檢查之前是否有抓取掃把或畚箕
-    #             has_broom_or_dustpan = any(
-    #                 s.action_type == ActionType.PICK and 
-    #                 s.step_id < step.step_id 
-    #                 for s in steps
-    #             )
-    #             if not has_broom_or_dustpan:
-    #                 error = ValidationError(
-    #                     error_type="缺少前提",
-    #                     severity=10,
-    #                     step_id=step.step_id,
-    #                     arm=arm,
-    #                     description=f"步驟 {step.step_id} 執行掃地前未抓取掃把或畚箕"
-    #                 )
-    #                 self.errors.append(error)
-    #                 self.total_penalty += error.severity
-            
-    #         # 檢查 place 前是否有對應的 pick
-    #         if step.action_type == ActionType.PLACE:
-    #             if step.object_index not in held_objects:
-    #                 error = ValidationError(
-    #                     error_type="缺少前提",
-    #                     severity=9,
-    #                     step_id=step.step_id,
-    #                     arm=arm,
-    #                     description=f"步驟 {step.step_id} 放置物品 {step.object_index} 前未抓取"
-    #                 )
-    #                 self.errors.append(error)
-    #                 self.total_penalty += error.severity
-            
-    #         # 更新持有狀態
-    #         if step.action_type == ActionType.PICK:
-    #             held_objects.add(step.object_index)
-    #         elif step.action_type == ActionType.PLACE:
-    #             held_objects.discard(step.object_index)
     def _check_prerequisites(self, steps: List[ActionStep], arm: str):
         """檢查前提條件和依賴關係"""
         completed_steps = set()  # 已完成的步驟 ID
