@@ -38,7 +38,7 @@ class ActionType(str, Enum):
     PLACE = "place"                              # 放置動作
     SPRINKLE = "sprinkle_pepper"                 # 撒胡椒粉動作
     CLOSE_SANDWICH = "close_sandwich"            # 合起三明治動作
-
+    Wait_FOR_PEPPER = "wait_for_pepper"            # 等待胡椒粉動作
 
 
 class PickMode(str, Enum):
@@ -124,6 +124,9 @@ class ActionStep(BaseModel):
         elif self.action_type == ActionType.CLOSE_SANDWICH:
             # 合起三明治動作：需要手臂
             return f"close_sandwich('{self.arm.value}')"
+        elif self.action_type == ActionType.Wait_FOR_PEPPER:    
+            # 等待胡椒粉動作：需要手臂
+            return f"wait_for_pepper('{self.arm.value}')"
 class ArmPlan(BaseModel):
     """
     單臂動作計畫
@@ -160,6 +163,8 @@ class RobotPlan(BaseModel):
 
 class GPTPlanner:
     def __init__(self):
+        self.left_arm_status = "empty"
+        self.right_arm_status = "empty"
         self.system_prompt = """
             你是一個雙手機器人動作規劃器，需要根據已知的資訊去做任務規劃的排程。
             你的任務是:
@@ -222,6 +227,7 @@ class GPTPlanner:
             "place(object_index,string place_mode, angle, arm)\n"
             "close_sandwich(arm)\n"
             "sprinkle_pepper(arm)\n"
+            "wait_for_pepper(arm)\n"
             "======================================\n"
             "以下為動作函式說明:\n"
             "arm_eyeInHand_camera_catch(object_index, arm): 對應物品，分配對應手臂，讓手臂上相機再照一次，獲得準確物品資訊，更新物品資訊。【⛔嚴重警告：此函式「僅限」清掃任務(broom, dustpan)使用！製作三明治(toast)或抓取調味料時，絕對禁止呼叫此動作！】\n"
@@ -247,6 +253,8 @@ class GPTPlanner:
             "sprinkle_pepper(arm): 執行撒胡椒粉動作，arm為使用的手臂(left or right)。\n"
             "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
 
+            "wait_for_pepper(arm): 執行等待胡椒粉動作，arm為使用的手臂(left or right)。\n"
+            "arm: 指定使用的手臂，選項為 'left' 或 'right'。\n\n"
 
         )
         # self.safety_constraints_prompt = (
@@ -307,6 +315,7 @@ class GPTPlanner:
             "left arm:"
             "Step 1. sprinkle_pepper('left')"
             "right arm:"
+            "Step 1. wait_for_pepper('right')"
             "Step 2. close_sandwich('right')"
 
             "==============================="
@@ -324,7 +333,18 @@ class GPTPlanner:
             "left arm:"
             "Step 1. pick('left', 'sliced toast')"
             "==============================="
+            "任務規劃範例七: "
+            "==============================="
+            "任務: 灑胡椒粉並將土司覆蓋三明治來完成製作三明治(假設左手已持有吐司，右手已持有胡椒粉）"
+            "動作規劃: "
+            "left arm:"
+            "Step 1. wait_for_pepper('left')"
+            "Step 2. close_sandwich('left')"
 
+            "right arm:"
+            "Step 1. sprinkle_pepper('right')"
+
+            "==============================="
         )
       
         
@@ -503,7 +523,7 @@ class GPTPlanner:
             "  ]\n"
             "}\n"
             "```\n"
-            "**範例任務四：灑胡椒粉並將土司覆蓋三明治來完成製作三明治**\n"
+            "**範例任務四：灑胡椒粉並將土司覆蓋三明治來完成製作三明治（假設左手已持有胡椒粉，右手抓取吐司）**\n"
             "\n"
             "```json\n"
             "{\n"
@@ -519,9 +539,15 @@ class GPTPlanner:
             "  \"right_arm\": [\n"
             "    {\n"
             "      \"step_id\": 1,\n"
-            "      \"action_type\": \"close_sandwich\",\n"
+            "      \"action_type\": \"wait_for_pepper\",\n"
             "      \"arm\": \"right\",\n"
             "      \"prerequisites\":[] \n"
+            "    }\n"
+            "    {\n"
+            "      \"step_id\": 2,\n"
+            "      \"action_type\": \"close_sandwich\",\n"
+            "      \"arm\": \"right\",\n"
+            "      \"prerequisites\":[1] \n"
             "    }\n"
             "  ]\n"
             "}\n"
@@ -562,6 +588,36 @@ class GPTPlanner:
             "  ]\n"
             "}\n"
             "```\n"
+            "**範例任務七：灑胡椒粉並將土司覆蓋三明治來完成製作三明治(假設左手已持有吐司，右手已持有胡椒粉）**\n"
+            "\n"
+            "```json\n"
+            "{\n"
+            "  \"task_description\": \"灑胡椒粉並將土司覆蓋三明治來完成製作三明治(假設左手已持有吐司，右手已持有胡椒粉）\",\n"
+            "  \"left_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"wait_for_pepper\",\n"
+            "      \"arm\": \"left\",\n"
+            "      \"prerequisites\": []\n"
+            "    }\n"
+            "    {\n"
+            "      \"step_id\": 2,\n"
+            "      \"action_type\": \"close_sandwich\",\n"
+            "      \"arm\": \"left\",\n"
+            "      \"prerequisites\":[1] \n"
+            "    }\n"
+            "  ],\n"
+            "  \"right_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"sprinkle_pepper\",\n"
+            "      \"arm\": \"right\",\n"
+            "      \"prerequisites\":[] \n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```\n"
+
 
 
             "\n"

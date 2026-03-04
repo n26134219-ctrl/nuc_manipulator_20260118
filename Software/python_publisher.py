@@ -42,7 +42,7 @@ class SharedObject:
             if obj['name'] == object_name:
                 obj['status'] = f"{arm} arm is holding {object_name}"
                 update_camera_prompt()  # 更新提示詞以反映物品狀態變化
-                update_robot_status_prompt(arm)  # 更新機器人狀態提示詞
+                update_robot_status_prompt(arm, object_name)  # 更新機器人狀態提示詞
                 break
         
 
@@ -148,10 +148,12 @@ def task_type_callback(msg):
         get_toast_info()
         update_camera_prompt()
     elif category == "prepare_sandwich":
-        GPT_planner.task_description_prompt =  "請規劃一個機器人完成三明治動作"
+        GPT_planner.task_description_prompt =  "請規劃一個機器人完成準備三明治動作"
         get_sandwich()
         update_camera_prompt()
+    
     robot_plan = generate_task_plan()
+
     while True:
             user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
             if user_input == "1":
@@ -395,6 +397,9 @@ def search_pepper_shaker():
                 if obj['3d_size'][0] >  200 or obj['3d_size'][1] >  100 or obj['3d_size'][2] >  100:
                     rospy.loginfo("胡椒罐尺寸過大，無法拾取")
                     return False
+                elif obj['base_center_pos'][0] > 680 or abs(obj['base_center_pos'][1]) > 300:
+                    rospy.loginfo("胡椒罐位置過遠，無法拾取")
+                    return False
                 else:
                     rospy.loginfo("✓ 成功找到胡椒罐")
                     rospy.loginfo(f"找到胡椒罐，索引為: {index}")
@@ -408,7 +413,8 @@ def search_pepper_shaker():
                     z_values.sort()
                     mini_z = z_values[0]  # 排序最小值的值
                 
-                    center_pos[0] = left_pos[0] = right_pos[0] = mini_z
+                    center_pos[0] = left_pos[0] = right_pos[0] = mini_z 
+                    center_pos[2] = center_pos[2] - 10
                     return True
         
     else:
@@ -425,6 +431,9 @@ def search_toast():
             if "sliced toast" in obj['name']:
                 if obj['3d_size'][0] >  200 or obj['3d_size'][1] >  200 or obj['3d_size'][2] >  100:
                     rospy.loginfo("土司尺寸過大，無法拾取")
+                    return False
+                elif obj['base_center_pos'][0] > 680 or abs(obj['base_center_pos'][1]) > 300:
+                    rospy.loginfo("土司位置過遠，無法拾取")
                     return False
                 else:
                     rospy.loginfo("✓ 成功找到土司")
@@ -509,7 +518,8 @@ def search_sandwich():
    
 def get_pepper_info():
     global shared_object
-    update_search_phrase(["pepper shaker bottle"]) 
+    draw_back_hands()
+    update_search_phrase(["pepper shaker"]) # bottle
     robot_control.neck_control(0, 45)
     if shared_object.head_camera_ready == True:
         while search_pepper_shaker() == False:
@@ -521,11 +531,12 @@ def get_pepper_info():
 
 def get_toast_info():
     global shared_object
+    draw_back_hands()
     update_search_phrase(["sliced toast"]) 
-    robot_control.neck_control(0, 40)
+    robot_control.neck_control(0, 45) #40
     if shared_object.head_camera_ready == True:
         while search_toast() == False:
-            robot_control.neck_control(0, 40)
+            robot_control.neck_control(0, 45) #40
     time.sleep(2)
     shared_object.head_camera_ready = False
     print("================= 獲取環境資訊完成 =================")
@@ -656,7 +667,7 @@ class RobotExecutor:
                 object = None
         if object == None:
             for obj in shared_object.total:
-                if obj['name'] == object_name:
+                if object_name in obj['name']:
                     find_object = True
                     object = obj
                     break
@@ -965,7 +976,8 @@ class RobotExecutor:
         robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle)
         robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*10)# [修改]
         robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*90)
-        
+    def wait_for_pepper(self,arm:str):
+        time.sleep(1)
     def sprinkle_pepper(self, arm: str):
         # robot_control.capture_publisher("close")
         global shared_object
@@ -1437,41 +1449,39 @@ if __name__ == '__main__':
     
     ros_sub_init()
     executor = RobotExecutor()
-    robot_control.neck_control(0, 40)# 45
+    robot_control.neck_control(0, 45)# 40
     # 1. 手臂測試
     time.sleep(2)
     # draw_back_hands_high()
-    # draw_back_hands()
+    draw_back_hands()
     print("開始測試...")
     
     shared_object.head_camera_ready = True
-    # get_sandwich()
-
-    # # sprinkle_pepper("left")
-    # robot_control.single_arm_initial_position("right")
-    # robot_control.single_arm_initial_position("left")
-    robot_control.single_arm_go_away("left")   
+    get_pepper_info()
+    get_toast_info()
+    update_camera_prompt()
+   
+       
 
     # test("right")
     
-    # GPT_planner.task_description_prompt = "請規劃一個機器人完成夾取土司動作"
+    GPT_planner.task_description_prompt = "請規劃一個機器人完成夾取胡椒粉與土司動作"
     # get_toast_info()
     # update_camera_prompt()
-    # robot_plan = generate_task_plan()
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
+    robot_plan = generate_task_plan()
+    while True:
+            user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            if user_input == "1":
+                print("✓ 繼續執行...")
                 
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # if robot_plan:
-
-    #     executor.execute_plan(robot_plan)
+                break 
+            elif user_input.lower() == "q":
+                print("✗ 取消動作")
+                exit()
+            else:
+                print("⚠ 請輸入 1 或 q")
+    if robot_plan:
+        executor.execute_plan(robot_plan)
     rospy.spin()
     # GPT_planner.task_description_prompt =  "請規劃一個機器人完成三明治動作"
     # get_sandwich_toast_info()
