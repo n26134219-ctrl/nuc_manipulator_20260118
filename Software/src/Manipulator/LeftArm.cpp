@@ -498,7 +498,7 @@ void LeftArm::Trajectory_Planning(double ox_deg, double oy_deg, double oz_deg, d
 }
 void LeftArm::mode_controll(double X, double Y, double Z, std::string pick_mode, double angle)
 {
-    if (pick_mode == "down" || pick_mode == "side" || pick_mode == "forward" || pick_mode == "side_reversal" || pick_mode == "side_down") {
+    if (pick_mode == "down" || pick_mode == "side" || pick_mode == "forward" || pick_mode == "side_reversal" || pick_mode == "side_down" || pick_mode == "side_tilt") {
         std::cout << "\t[INFO] Selected pick mode: " << pick_mode << std::endl;
     } else {
         std::cout << "\t[WARNING] Unknown pick mode: " << pick_mode << ". Defaulting to 'side' mode." << std::endl;

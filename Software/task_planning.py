@@ -36,9 +36,9 @@ class ActionType(str, Enum):
     PICK = "pick"                                # 抓取動作
     SWEEP = "sweep_the_table"                    # 掃桌動作
     PLACE = "place"                              # 放置動作
-    SPRINKLE = "sprinkle_pepper"                 # 撒胡椒粉動作
+    SPRINKLE_PEPPER = "sprinkle_pepper"                 # 撒胡椒粉動作
     CLOSE_SANDWICH = "close_sandwich"            # 合起三明治動作
-    Wait_FOR_PEPPER = "wait_for_pepper"            # 等待胡椒粉動作
+    WAIT_FOR_PEPPER = "wait_for_pepper"            # 等待胡椒粉動作
 
 
 class PickMode(str, Enum):
@@ -118,13 +118,13 @@ class ActionStep(BaseModel):
         elif self.action_type == ActionType.PLACE:
             # 放置動作：需要物體索引、模式、角度和手臂
             return f"place({self.object_index}, '{self.mode.value}', {self.angle}, '{self.arm.value}')"
-        elif self.action_type == ActionType.SPRINKLE:
+        elif self.action_type == ActionType.SPRINKLE_PEPPER:
             # 撒胡椒粉動作：需要手臂
             return f"sprinkle_pepper('{self.arm.value}')"
         elif self.action_type == ActionType.CLOSE_SANDWICH:
             # 合起三明治動作：需要手臂
             return f"close_sandwich('{self.arm.value}')"
-        elif self.action_type == ActionType.Wait_FOR_PEPPER:    
+        elif self.action_type == ActionType.WAIT_FOR_PEPPER:    
             # 等待胡椒粉動作：需要手臂
             return f"wait_for_pepper('{self.arm.value}')"
 class ArmPlan(BaseModel):
@@ -343,6 +343,16 @@ class GPTPlanner:
 
             "right arm:"
             "Step 1. sprinkle_pepper('right')"
+
+            "==============================="
+            "==============================="
+            "任務規劃範例八: "
+            "==============================="
+            "任務: 放回胡椒粉到桌子上(假設左手已持有胡椒粉，右手已持有吐司）"
+            "動作規劃: "
+            "left arm:"
+            "Step 1. place(0, 'side', 150, 'left')"
+            
 
             "==============================="
         )
@@ -614,6 +624,26 @@ class GPTPlanner:
             "      \"arm\": \"right\",\n"
             "      \"prerequisites\":[] \n"
             "    }\n"
+            "  ]\n"
+            "}\n"
+            "```\n"
+            "**範例任務八： 放回胡椒粉到桌子上(假設左手已持有胡椒粉，右手已持有吐司）**\n"
+            "\n"
+            "```json\n"
+            "{\n"
+            "  \"task_description\": \"放回胡椒粉到桌子上(假設左手已持有胡椒粉，右手已持有吐司）\",\n"
+            "  \"left_arm\": [\n"
+            "    {\n"
+            "      \"step_id\": 1,\n"
+            "      \"action_type\": \"place\",\n"
+            "      \"arm\": \"left\",\n"
+            "      \"object_index\": 0,\n"
+            "      \"mode\": \"side\",\n"
+            "      \"angle\": 150,\n"
+            "      \"prerequisites\": []\n"
+            "    }\n"
+            "  ],\n"
+            "  \"right_arm\": [\n"
             "  ]\n"
             "}\n"
             "```\n"

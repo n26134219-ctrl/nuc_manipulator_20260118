@@ -44,50 +44,58 @@ def main():
     # object_angle: 150 deg 
     # pick_mode: side """
 
-    planner.task_description_prompt = "請規劃一個機器人完成抓取吐司動作"
-    planner.camera_information_prompt = """object_name: pepper shaker
-    object_index: 0 
-    object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
-    object_angle: 150 deg 
-    pick_mode: side 
-    status: right arm is holding pepper shaker
+    # planner.task_description_prompt = "請規劃一個機器人完成抓取吐司動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side 
+    # status: right arm is holding pepper shaker
 
-    object_name: sliced toast
-    object_index: 1
-    object_position: px=580.0mm, py= 135.0mm, pz=-250.0mm
-    object_angle: 48 deg
-    pick_mode: side
+    # object_name: sliced toast
+    # object_index: 1
+    # object_position: px=580.0mm, py= 135.0mm, pz=-250.0mm
+    # object_angle: 48 deg
+    # pick_mode: side
     
-    """
-    planner.robot_status_prompt = (
-            "機器人狀態: \n"
-            "left arm: empty\n"
-            "right arm: holding pepper shaker\n"
-    )
+    # """
+    # planner.robot_status_prompt = (
+    #         "機器人狀態: \n"
+    #         "left arm: empty\n"
+    #         "right arm: holding pepper shaker\n"
+    # )
 
 
-    planner.task_description_prompt = "請規劃一個機器人完成抓取吐司動作"
-    planner.camera_information_prompt = """object_name: pepper shaker
-    object_index: 0 
-    object_position: px=561.5mm, py=105.6mm, pz=-100.5mm 
-    object_angle: 150 deg 
-    pick_mode: side 
-    status: left arm is holding pepper shaker
+    # planner.task_description_prompt = "請規劃一個機器人完成抓取吐司動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side 
+    # status: left arm is holding pepper shaker
 
-    object_name: sliced toast
-    object_index: 1
-    object_position: px=580.0mm, py= -135.0mm, pz=-250.0mm
-    object_angle: 48 deg
-    pick_mode: side
+    # object_name: sliced toast
+    # object_index: 1
+    # object_position: px=580.0mm, py= -135.0mm, pz=-250.0mm
+    # object_angle: 48 deg
+    # pick_mode: side
     
-    """
-    planner.robot_status_prompt = (
-            "機器人狀態: \n"
-            "left arm: holding pepper shaker\n"
-            "right arm: empty\n"
-    )
+    # """
+    # planner.robot_status_prompt = (
+    #         "機器人狀態: \n"
+    #         "left arm: holding pepper shaker\n"
+    #         "right arm: empty\n"
+    # )
 
-    planner.task_description_prompt = "請規劃一個機器人完成準備三明治動作"
+    # planner.task_description_prompt = "請規劃一個機器人完成準備三明治動作"
+    # planner.task_description_prompt = "請規劃一個機器人完成放置胡椒粉動作"
+    planner.task_description_prompt = (
+        "請規劃一個機器人完成放胡椒粉到原位動作。"
+    )
+    planner.environment_context_prompt = (
+            ""
+    )
+    print(planner.task_description_prompt)
     planner.camera_information_prompt = """object_name: pepper shaker
     object_index: 0 
     object_position: px=561.5mm, py=-105.6mm, pz=-100.5mm 
@@ -110,36 +118,37 @@ def main():
     """
     planner.robot_status_prompt = (
             "機器人狀態: \n"
-            "left arm: holding sliced toast\n"
+            "left arm: empty\n"
+            # "left arm: holding sliced toast\n"
             "right arm: holding pepper shaker\n"
     )
 
-    planner.task_description_prompt = "請規劃一個機器人完成三明治動作"
-    planner.camera_information_prompt = """object_name: pepper shaker
-    object_index: 0 
-    object_position: px=561.5mm, py=105.6mm, pz=-100.5mm 
-    object_angle: 150 deg 
-    pick_mode: side 
-    status: left arm is holding pepper shaker
+    # planner.task_description_prompt = "請規劃一個機器人完成三明治動作"
+    # planner.camera_information_prompt = """object_name: pepper shaker
+    # object_index: 0 
+    # object_position: px=561.5mm, py=105.6mm, pz=-100.5mm 
+    # object_angle: 150 deg 
+    # pick_mode: side 
+    # status: left arm is holding pepper shaker
 
-    object_name: sliced toast
-    object_index: 1
-    object_position: px=580.0mm, py= -135.0mm, pz=-250.0mm
-    object_angle: 48 deg
-    pick_mode: side
-    status: right arm is holding sliced toast
+    # object_name: sliced toast
+    # object_index: 1
+    # object_position: px=580.0mm, py= -135.0mm, pz=-250.0mm
+    # object_angle: 48 deg
+    # pick_mode: side
+    # status: right arm is holding sliced toast
 
-    object_name: sandwich
-    object_index: 2
-    object_position: px=400.0mm, py=0.0mm, pz=-300.0mm
-    object_angle: 30 deg
-    pick_mode: down
-    """
-    planner.robot_status_prompt = (
-            "機器人狀態: \n"
-            "left arm: holding pepper shaker\n"
-            "right arm: holding sliced toast\n"
-    )
+    # object_name: sandwich
+    # object_index: 2
+    # object_position: px=400.0mm, py=0.0mm, pz=-300.0mm
+    # object_angle: 30 deg
+    # pick_mode: down
+    # """
+    # planner.robot_status_prompt = (
+    #         "機器人狀態: \n"
+    #         "left arm: holding pepper shaker\n"
+    #         "right arm: holding sliced toast\n"
+    # )
     
     
  

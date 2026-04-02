@@ -13,7 +13,7 @@ last_done_count = 0
 new_done_count = 0
 def wait_for_robot_action_completion():
     global robot_state
-    robot_state = False
+    
     while not robot_state or last_done_count == new_done_count:
         time.sleep(0.5)
     robot_state = False
@@ -123,6 +123,14 @@ class CommandPublisher:
         }
         self._send(command)
         wait_for_robot_action_completion()
+    
+    def close_gripper2stage(self, arm):
+        command = {
+            "action": "close_gripper2stage",  # 識別欄位
+            "arm": arm,
+        }
+        self._send(command)
+        wait_for_robot_action_completion()
     def close_gripper_ang(self, arm, angle=55):
         """關閉夾爪命令"""
         command = {
@@ -154,8 +162,8 @@ class CommandPublisher:
         msg = String()
         msg.data = json.dumps(command)
         print("Sending: {}".format(command))
+        robot_state = False
         self.pub.publish(msg)
-        rospy.sleep(0.1)
     def camera_body_search(self):
         self.neck_control(0, 76)
         time.sleep(2)
@@ -223,6 +231,8 @@ class CommandPublisher:
             sign = -1
             init_angle = 30
         gripper_length = 23.5
+        distance = 120
+
         if pick_mode == "down":
             if abs(y) <= 150:
                 y_dis = 15
@@ -263,10 +273,29 @@ class CommandPublisher:
             self.single_move(arm, 400, sign * 150, -130, "side", init_angle)
 
         elif pick_mode == "side":
-            self.single_move(arm, x, y + sign * 120, z, pick_mode, angle)
-            self.single_move(arm, x, y + sign * size[0]/2, z, pick_mode, angle)
+            if angle >= 90:
+                theta = 180 - angle
+            else:
+                theta = angle
+            # while True:
+            #     print(f"即將移動到: x={x}, y={y}, z={z + 80}")
+            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            #     if user_input == "1":
+            #         print("✓ 繼續執行...")
+                
+            #         break 
+            #     elif user_input.lower() == "q":
+            #         print("✗ 取消動作")
+            #         exit()
+            #     else:
+            #         print("⚠ 請輸入 1 或 q")
+            self.single_move(arm, x, y , z + 80, pick_mode, angle)
+            self.single_move(arm, x, y , z  , pick_mode, angle)
+            
             self.open_gripper(arm)
-            self.single_move(arm, x, y + sign * size[0]/2, z + 100, pick_mode, angle)
+            self.single_move(arm, x - distance * math.sin(math.radians(theta)), y + sign * distance * math.cos(math.radians(theta)), z + 100, pick_mode, angle)
+
+            self.single_arm_initial_position(arm)
         # elif pick_mode == "side_reversal":
         #     place_height_offset = 60
         #     self.single_move(arm, x, y , z + place_height_offset+ size[2]/2, pick_mode, 0)
@@ -339,8 +368,11 @@ class CommandPublisher:
             #     else:
             #         print("⚠ 請輸入 1 或 q")
             self.single_move(arm, x, y , z, pick_mode, angle)
-
-            self.close_gripper(arm)
+            min_size = min(size[0], size[1], size[2])
+            if min_size < 50:
+                self.close_gripper(arm)
+            else:
+                self.close_gripper2stage(arm)
             # while True:
             #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
             #     if user_input == "1":

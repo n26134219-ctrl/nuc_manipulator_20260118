@@ -205,6 +205,14 @@ void Robot::linear_gripper_control(std::string arm)
 
     // closeGripper(arm);
 }
+void Robot::linear_gripper_control2stage(std::string arm)
+{
+
+    refineGripper_thread(arm , 10, 55.0);
+    refineGripper_thread(arm , 6.8, 250.0); //8//7
+   
+
+}
 void Robot::refineGripperPosition(std::string arm, float adjustment)
 {
     if (arm == "left") {
@@ -375,6 +383,32 @@ void Robot::commandCallback(const std_msgs::String::ConstPtr& msg)
                 Action_Done_Callback("Done");
                 // linear_gripper_control(arm);
                 // GripperController(arm, angle);
+            }
+            
+        }else if (action == "close_gripper2stage") {
+            std::string arm = j["arm"];
+            // float angle = j["angle"];
+            ROS_INFO("close_gripper: arm=%s", arm.c_str());
+            if (arm == "both") {
+                std::thread leftThread([&]() {
+                    linear_gripper_control2stage("left");
+                    
+                });
+                std::thread rightThread([&]() {
+                    linear_gripper_control2stage("right");
+                    
+                });
+                leftThread.join();
+                rightThread.join();
+                Action_Done_Callback("Done");    
+            } else {
+                std::thread gripperThread([&]() {
+                    linear_gripper_control2stage(arm);
+                    
+                });
+                gripperThread.join(); 
+                Action_Done_Callback("Done");
+                
             }
             
         }else if (action == "close_gripper_ang") {

@@ -348,6 +348,14 @@ ArmInfo::getPickTypePose(const std::string& arm,
             } else ori.y() = -angle;
 
         }
+        else if (ptype == "side_tilt"){
+           ori = Vector3d(-180, 0, 35);
+            if (angle>=90) {
+                double sup = 180-angle;
+                ori.y() = sup;
+                
+            } else ori.y() = -angle;
+        }
     }
     else if(arm=="right"){
         if(ptype=="side"){
@@ -384,6 +392,11 @@ ArmInfo::getPickTypePose(const std::string& arm,
             if(angle>90) ori.y()=-angle;
             else ori.y()=(180-angle);
             
+        }
+        else if (ptype == "side_tilt"){
+            ori=Vector3d(0,180,-35);
+            if(angle>90) ori.y()=-angle;
+            else ori.y()=(180-angle);
         }
     } else {
         cout<<"Unknown arm"<<endl;

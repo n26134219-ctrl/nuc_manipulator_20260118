@@ -76,6 +76,7 @@ public:
     void refineGripperPosition(std::string arm, float adjustment);
     void refineGripper_thread(std::string arm , float adjustment, double angle);
     void linear_gripper_control(std::string arm);
+    void linear_gripper_control2stage(std::string arm);
     void waitForArm(std::string arm);
 
 private:
