@@ -2,11 +2,9 @@
 #!/usr/bin/env python3
 import rospy
 from std_msgs.msg import String
-import rospy
 import json
 import time
 from geometry_msgs.msg import Point
-
 from dotenv import load_dotenv
 import os
 from openai import OpenAI
@@ -18,16 +16,16 @@ from typing import List
 import threading
 robot_control = CommandPublisher()
 GPT_planner = GPTPlanner()
-
-# load_dotenv()  # 讀取 .env 檔
-# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-# task_description_prompt = "請利用桌面上的掃把與畚箕，將桌上掃乾淨。"
-
 total_objects_phrase_pub = rospy.Publisher('assign_object_phase', String, queue_size=10)
 left_objects_phrase_pub = rospy.Publisher('assign_left_object_phase', String, queue_size=10)
 right_objects_phrase_pub = rospy.Publisher('assign_right_object_phase', String, queue_size=10)
 
-# received_base_positions = []  # 按順序儲存收到的基座標
+class Robotstatus:
+    def __init__(self):
+        self.left_arm_status = "empty" # 記錄抓取物品
+        self.right_arm_status = "empty" # 記錄抓取物品
+robot_status = Robotstatus()
+
 class SharedObject:
     def __init__(self):
         self.total = []  # 總物體列表
@@ -37,22 +35,56 @@ class SharedObject:
         self.head_camera_ready = False
         self.left_camera_ready = False
         self.right_camera_ready = False
+    def update_robot_status_prompt(self, arm, object_name, status=None):
+        global GPT_planner,robot_status
+        # 1. 根據輸入更新對應手的狀態
+        if status == "holding":
+            status_text = f"holding {object_name}" if object_name else "empty"
+            if arm == "left":
+                robot_status.left_arm_status = object_name # 更新抓取物品
+            elif arm == "right":
+                robot_status.right_arm_status = object_name # 更新抓取物品
+        elif status == "clear":
+            status_text = "empty"
+            if arm == "left":
+                robot_status.left_arm_status = "empty"
+            elif arm == "right":
+                robot_status.right_arm_status = "empty"
+
+        if arm == "left":
+            GPT_planner.left_arm_status = status_text # 更新 gpt robot status prompt
+        elif arm == "right":
+            GPT_planner.right_arm_status = status_text  # 更新 gpt robot status prompt
+        elif arm == "clear": # 額外功能：清空所有狀態
+            GPT_planner.left_arm_status = "empty"
+            GPT_planner.right_arm_status = "empty"
+        
+        # 2. 將兩者的狀態組合進最終的 Prompt
+        GPT_planner.robot_status_prompt = (
+            "機器人狀態: \n"
+            f"left arm: {GPT_planner.left_arm_status}\n"
+            f"right arm: {GPT_planner.right_arm_status}\n"
+        )
+        
+        print("更新機器人狀態提示詞:")
+        print(GPT_planner.robot_status_prompt) 
     def record_pick(self, object_name, arm):
         for obj in self.total:
             if obj['name'] == object_name:
                 obj['status'] = f"{arm} arm is holding {object_name}"
                 update_camera_prompt()  # 更新提示詞以反映物品狀態變化
-                update_robot_status_prompt(arm, object_name, "holding")  # 更新機器人狀態提示詞
+                self.update_robot_status_prompt(arm, object_name, "holding")  # 更新機器人狀態提示詞
                 break
-    def record_place(self, object_index, arm):
-        if object_index < len(self.total):
-            self.total[object_index]['status'] = f"{arm} arm is empty"
-
-            object_name = self.total[object_index]['name']
-        # update_camera_prompt()  # 更新提示詞以反映物品狀態變化
-        update_robot_status_prompt(arm, object_index, "clear")  # 清空手臂狀態
-                
+    def record_place(self, object_name, arm):
+        for obj in self.total:
+            if obj['name'] == object_name:
+                obj['status'] = f"{arm} arm is empty"
+                update_camera_prompt()  # 更新提示詞以反映物品狀態變化
+                self.update_robot_status_prompt(arm, object_name, "clear")  # 清空手臂狀態
+                break
+                     
 shared_object = SharedObject()
+
 
 
 # ================================ ROS 訂閱回調函式 =============================================
@@ -160,8 +192,6 @@ def task_type_callback(msg):
 
     elif category == "pick_pepper_and_toast":
         GPT_planner.task_description_prompt = "請規劃一個機器人完成夾取胡椒粉與土司動作"
-        # get_pepper_info()
-        # get_toast_info()
         get_pepper_toast_info()
         update_camera_prompt()
     elif category == "place_pepper":
@@ -170,23 +200,20 @@ def task_type_callback(msg):
 
 
     robot_plan = generate_task_plan()
-
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
+    
+    while True:
+            user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+            if user_input == "1":
+                print("✓ 繼續執行...")
                 
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
+                break 
+            elif user_input.lower() == "q":
+                print("✗ 取消動作")
+                exit()
+            else:
+                print("⚠ 請輸入 1 或 q")
     if robot_plan:
         executor.execute_plan_together(robot_plan)
-    # if category == "pick_toast":
-        # 發送準備三明治 
-
 
 
 def ros_sub_init():
@@ -198,9 +225,6 @@ def ros_sub_init():
     rospy.Subscriber('/camera/camera_ready', String, camera_ready_callback)
     rospy.Subscriber('task_type', String, task_type_callback)
 
-
-
-    # rospy.spin()
 # ================================= 輔助顯示資訊函式 =============================================
 def show_info(object):
     for idx, obj_info in enumerate(object):
@@ -241,43 +265,6 @@ def update_camera_prompt():
     print("更新相機資訊提示詞:")
     print(GPT_planner.camera_information_prompt)
 
-def update_robot_status_prompt(arm, object_name, status=None):
-    global GPT_planner
-    
-    # 1. 根據輸入更新對應手的狀態
-    if status == "holding":
-        status_text = f"holding {object_name}" if object_name else "empty"
-    elif status == "clear":
-        status_text = "empty"
-    
-    if arm == "left":
-        GPT_planner.left_arm_status = status_text
-    elif arm == "right":
-        GPT_planner.right_arm_status = status_text
-    elif arm == "clear": # 額外功能：清空所有狀態
-        GPT_planner.left_arm_status = "empty"
-        GPT_planner.right_arm_status = "empty"
-    
-    # 2. 將兩者的狀態組合進最終的 Prompt
-    GPT_planner.robot_status_prompt = (
-        "機器人狀態: \n"
-        f"left arm: {GPT_planner.left_arm_status}\n"
-        f"right arm: {GPT_planner.right_arm_status}\n"
-    )
-    
-    print("更新機器人狀態提示詞:")
-    print(GPT_planner.robot_status_prompt)
-
-def draw_back_hands():
-    time.sleep(3)
-    robot_control.dual_move(266.3, 80, -230, "side", -10, 266.3, -80, -230, "side", 10)
-
-def draw_back_hands_high():
-    time.sleep(3)
-    robot_control.dual_move(280, 80, -130, "side", -10, 280, -80, -130, "side", 10)
-
-
-
 def angle_fine_tune(arm):
     global shared_object
     if arm == "left":
@@ -298,10 +285,7 @@ def angle_fine_tune(arm):
                         obj['angle'] = -(180 - angle)
                     else:
                         obj['angle'] = 180 + angle
-                    
-                 
                 rospy.loginfo(f"左:微調角度: {obj['angle']}")
-
             elif arm == "right":
                 if vector != None and vector[1] > 0:
                     if angle > 0 or angle == 0: 
@@ -309,8 +293,6 @@ def angle_fine_tune(arm):
                         obj['angle'] = -(180 - angle)
                     else:
                         obj['angle'] = 180 + angle
-                    
-                
                 rospy.loginfo(f"右:微調角度: {obj['angle']}")
         elif  name == 'brush tool':
             if arm == "left":
@@ -322,7 +304,6 @@ def angle_fine_tune(arm):
                             obj['angle'] = -(180 - angle)
                     else:
                         obj['angle'] = 180 + angle
-                    
                 else:
                     if angle > 90 or angle == 90: 
                         obj['angle'] = -(180 - angle) 
@@ -342,41 +323,60 @@ def angle_fine_tune(arm):
                         obj['angle'] = -(180 - angle)
                 rospy.loginfo(f"右:微調角度: {obj['angle']}")
 
+# ==================================== action functions for camera ====================================
+def draw_back_hands():
+    time.sleep(3)
+    robot_control.dual_move(266.3, 80, -230, "side", -10, 266.3, -80, -230, "side", 10)
 
-
-
-
-
-   
+def draw_back_hands_high():
+    time.sleep(3)
+    robot_control.dual_move(280, 80, -130, "side", -10, 280, -80, -130, "side", 10)
 
 # ==================================== camera search functions ====================================
 
-# def update_search_phrase(phrase):
-#     total_objects_phrase_pub.publish(phrase)
-#     time.sleep(2)
-def update_search_phrase(phase_list): #0224
+def update_search_phrase(phase_list):
     json_phase = json.dumps(phase_list)
     total_objects_phrase_pub.publish(json_phase)
     time.sleep(2)
 
 def search_trush():
     robot_control.capture_publisher("head")
-    time.sleep(15)
+    time.sleep(20)
+    find_trash = False
+    print("開始搜尋垃圾...")
     if len(shared_object.total) > 0:
         for index, obj in enumerate(shared_object.total):
-            if isinstance(obj['name'], list):
-                if "rice food" in obj['name']:
-                    if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['base_center_pos'][0] > 650:
-                        rospy.loginfo("垃圾尺寸過大，無法拾取")
-                        return False
+            print(f"檢查物件: {obj['name']}")
+
+            if "rice food" in obj['name'] or "rice food" == obj['name']:
+                if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['base_center_pos'][0] > 650:
+                    rospy.loginfo("垃圾尺寸過大，無法拾取")
+                    return False
+                else:
+                    find_trash = True
+                    print("找到垃圾，開始處理...")
+                    left_pos = obj.get('left_base_pos', None)
+                    right_pos = obj.get('right_base_pos', None)
+                    center_pos = obj.get('base_center_pos', None)
+                    # 待測試
+                    print(f"原始垃圾的相機座標: center {center_pos}, left {left_pos}, right {right_pos}")
+                    center_pos[2] -= 20
+                    left_pos[2] -= 20
+                    right_pos[2] -= 20 # bounding box 大一點
+                    min_z = min(center_pos[2], left_pos[2], right_pos[2])
+                    # center_pos[2] = center_pos[2] - 10
+                    center_pos[2] = (center_pos[2] + min_z) / 2
+                    left_pos[2] = (left_pos[2] + min_z) / 2
+                    right_pos[2] = (right_pos[2] + min_z) /2
+                    print(f"更新垃圾的相機座標: center {center_pos} ")
+                    print(f"更新垃圾的相機座標: left {left_pos} ")
+                    print(f"更新垃圾的相機座標: right {right_pos} ")
+
                     rospy.loginfo(f"找到垃圾，索引為: {index}")
                     return True
-            # if obj['name'] == "rice food":
-            #     if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['base_center_pos'][0] > 650:
-            #         rospy.loginfo("垃圾尺寸過大，無法拾取")
-            #         return False
-            #     rospy.loginfo(f"找到垃圾，索引為: {index}")
-            #     return True
+        if not find_trash:
+             rospy.loginfo("未找到垃圾")
+             return False
     else:
         rospy.loginfo("未找到垃圾")
         return False
@@ -387,7 +387,6 @@ def search_dustpan_broom():
     found_dustpan = False
     found_brush = False
     if len(shared_object.total) >= 2:
-        
         for index, obj in enumerate(shared_object.total):
             name = obj['name']
             if obj['3d_size'][0] >  300 or obj['3d_size'][1] >  300 or obj['3d_size'][2] >  300:
@@ -444,16 +443,6 @@ def search_pepper_shaker():
                     min_z = min(center_pos[2], left_pos[2], right_pos[2])
                     # center_pos[2] = center_pos[2] - 10
                     center_pos[2] = (center_pos[2] + min_z) / 2
-
-
-                    
-
-                    # z_values = [center_pos[0], left_pos[0], right_pos[0]]
-                    # z_values.sort()
-                    # mini_z = z_values[0]  # 排序最小值的值
-
-
-
                     return True
         
     else:
@@ -599,37 +588,23 @@ def search_pepper_and_toast():
                     left_pos = obj.get('left_base_pos', None)
                     right_pos = obj.get('right_base_pos', None)
                     center_pos = obj.get('base_center_pos', None)
-                    # z_values = [center_pos[0], left_pos[0], right_pos[0]]
-                    # z_values.sort()
-                    # mini_z = z_values[0]  # 排序最小值的值
-                    # center_pos[0] = center_pos[0]-5
-                    # if center_pos[1] > 0:
-                    #     center_pos[1] = center_pos[1] -10
-                    # else:
-                    #     center_pos[1] = center_pos[1] + 10
                     center_pos[0]-=10
                     left_pos[0]-=10
                     right_pos[0]-=10
-
                     if center_pos[1] > 0:
-                       
                         min_y = min(center_pos[1], left_pos[1], right_pos[1])
                         center_pos[1] = min_y -15
                     else:
                         max_y = max(center_pos[1], left_pos[1], right_pos[1])
                         center_pos[1] = max_y + 15
-                    # center_pos[0] = left_pos[0] = right_pos[0] = mini_z 
                     center_pos[2] -= 20
                     left_pos[2] -= 20
-                    right_pos[2] -= 20 # bounding box 大一點
+                    right_pos[2] -= 20 #去除底邊容易向上飄移 # bounding box 大一點
                     min_z = min(center_pos[2], left_pos[2], right_pos[2])
-                    # center_pos[2] = center_pos[2] - 10
                     center_pos[2] = (center_pos[2] + min_z) / 2
-            
     else:
         print("沒有物件")
-        return False
-           
+        return False    
     if  found_toast and found_pepper:
         return True      
     else:
@@ -641,12 +616,10 @@ def search_pepper_and_toast():
 
 def search_sandwich():
     found_sandwich = False
-   
     robot_control.capture_publisher("head")
     time.sleep(15)
     if len(shared_object.total) > 0:
         for index, obj in enumerate(shared_object.total):
-
             if "sandwich" in obj['name']:
                 if obj['base_center_pos'][0] > 680 or abs(obj['base_center_pos'][1]) > 300:
                     rospy.loginfo("三明治位置過遠，無法放置")
@@ -720,57 +693,45 @@ def get_sandwich():
 def get_env_info():
     global shared_object
     robot_control.initial_position()
+    robot_control.neck_control(0, 70)
     if shared_object.head_camera_ready == True:
         while search_dustpan_broom() == False:
-            robot_control.neck_control(0, 76)
+            robot_control.neck_control(0, 70)
     time.sleep(2)
     shared_object.head_camera_ready = False
-
     draw_back_hands()
-
     robot_control.neck_control(0, 45)
-    # update_search_phrase("rice food")
-    update_search_phrase(["rice food"]) #0224
+    update_search_phrase(["rice food"])
+    
     if shared_object.head_camera_ready == True:
         while search_trush() == False:
             robot_control.neck_control(0, 45)
     time.sleep(2)
     shared_object.head_camera_ready = False
-
-    robot_control.neck_control(0, 76)
+    robot_control.neck_control(0, 70)
     print("================= 獲取環境資訊完成 =================")
     show_info(shared_object.total)
     robot_control.initial_position()
 
-
-
-# step1 :語音-> 更新相機phrase -> 判斷是否為清掃任務
-# step2 : get_env_info -> 更新物品資訊
-# step3 : update_camera_prompt ＝>根據物品資訊與任務需求，產生動作規劃 =>gpt
-# step4 : 執行動作規劃& vlm check
-
-
-
 # ==================================== 動作函式呼叫範例 ====================================
-
-
 class RobotExecutor:
     """機器人動作執行器"""
-    
     def __init__(self):
         # 建立函式名稱到實際函式的映射表
         self.action_map = {
             "arm_eyeInHand_camera_catch": self.arm_eyeInHand_camera_catch,
             "pick": self.pick,
-            "sweep_the_table": self.sweep_the_table,
+            # "sweep_the_table": self.sweep_the_table,
+            "sweep_towards": self.sweep_towards,
             "place": self.place,
             "sprinkle_pepper":self.sprinkle_pepper,
-            "wait_for_pepper":self.wait_for_pepper,
+            # "wait_for_pepper":self.wait_for_pepper,
+            "wait": self.wait,
+            "move_to_object": self.move_to_object,
             "close_sandwich":self.close_sandwich
         }
         self.active_arm = "left"
         self.auxiliary_arm = "right"
-    
     # === 實際的機器人動作函式 ===
     
     def arm_eyeInHand_camera_catch(self, object_index: int, arm: str): # 讓手臂上相機再照一次，獲得準確物品資訊，更新物品資訊
@@ -787,8 +748,6 @@ class RobotExecutor:
         elif arm == "right":
             right_objects_phrase_pub.publish(name)
             sign = 1
-        
-        
         if object_pos:
             rospy.loginfo(f"[{arm}] 相機重新捕捉物品物體 {object_index} 的基座標位置: {object_pos}")
             if pick_mode == "down":
@@ -799,22 +758,6 @@ class RobotExecutor:
                 elif arm == "right":
                     robot_control.arms_camera_capture(object_pos[0], object_pos[1], object_pos[2], pick_mode, arm)
             time.sleep(5)
-            # while True:
-            #     if arm == "left":
-            #         objects = shared_object.left
-
-            #         sign = 1
-            #     elif arm == "right":
-            #         objects = shared_object.right
-                    
-            #         sign = -1
-            #     if len(objects)>0:
-            #         arm_object_pos = objects[0].get('base_center_pos', None)
-            #         if arm_object_pos:
-            #                 y = arm_object_pos[1]
-            #                 if y * sign > -60:
-            #                     break
-                
     def pick(self, arm: str, object_name: str):
         # get object information
         find_object = False
@@ -852,20 +795,15 @@ class RobotExecutor:
         
         if object_pos and pick_mode and size: 
             if object_name == 'dustpan tool':
-                # size[2] = size[2] *2 # *2 *1 
-    
                 print(f"畚箕高度為: {size[2]}mm")
                 handle_size = [size[0], size[1], size[2]]
-                if handle_size[2]>32: ###@[修改]
-                    handle_size[2] = 31.5-15 
-            
+                if handle_size[2]>32: 
+                    handle_size[2] = 31.5-15  # 避免辨識錯誤
             if object_name == 'brush tool':
                 if arm == "right":
                     self.active_arm = "right"
                     self.auxiliary_arm = "left"
                 handle_size = [size[0], size[1], size[2]]
-            
-
             if "pepper shaker" in object_name:
                 if arm == "right":
                     self.active_arm = "right"
@@ -877,8 +815,6 @@ class RobotExecutor:
                     self.auxiliary_arm = "right"
                     angle = 150
                     print(f"微調後角度為: {angle}")
-           
-                
             if object_name == 'brush tool' or object_name == 'dustpan tool':
                 print(f"抓取物品尺寸為: {handle_size}")
                 robot_control.single_arm_pick( object_pos[0], object_pos[1], object_pos[2], pick_mode, handle_size, angle, arm)
@@ -891,46 +827,236 @@ class RobotExecutor:
             else:
                 robot_control.single_arm_pick(object_pos[0], object_pos[1], object_pos[2], pick_mode, size, angle, arm)
 
+    def move_to_object(self, arm: str, object_name: str):
+        # get object information
+        find_object = False
         
-    def sweep_the_table(self):
-        robot_control.capture_publisher("close")
-        """執行掃桌動作"""
-        print("執行掃桌動作")
+        
+        for obj in shared_object.total:
+            if object_name in obj['name']:
+                find_object = True
+                object = obj
+                break
+        if find_object == False:
+            rospy.loginfo(f"未找到物品 {object_name} 的資訊，無法執行移動")
+            return       
+        
+        if object_name == 'rice food'or  'rice food' in object_name:
+            
+            size = object['3d_size'].copy()
+            angle = object.get('angle', 0)
+            left_pos = object['left_base_pos'].copy()
+            right_pos = object['right_base_pos'].copy()
+            center_pos = object['base_center_pos'].copy()
+            if left_pos != None and right_pos != None and center_pos != None and size != None:
+                # 待測試
+                if size[2]<20:
+                    if size[2]<13:
+                        size[2] = 18
+                    size[2] = size[2]+5
+                left_pos[2] = left_pos[2] - size[2]
+                right_pos[2] = right_pos[2] - size[2]
+                center_pos[2] = center_pos[2] - size[2]
+               
+                z_values = [center_pos[2], left_pos[2], right_pos[2]]
+                z_values.sort()
+                median_z = z_values[1]  # 排序後中間的值
+                
+                center_pos[2] = left_pos[2] = right_pos[2] = median_z
+                if center_pos[2] > -323:    
+                    center_pos[2] = left_pos[2] = right_pos[2] = -323
+                elif center_pos[2] < -360:
+                    center_pos[2] = left_pos[2] = right_pos[2] = -360
+                # center_pos[2] = left_pos[2] = right_pos[2] = max(center_pos[2], left_pos[2], right_pos[2])
+                print(f"桌面統一高度為: {center_pos[2]} mm")
+            
+
+            gripper_length = 23.5 #30   24    
+            brush_length = 110  # 掃把握柄中心到尾端長度為125 105mm
+            dustpan_length = 195  # 畚箕長度+距離offset假設為170 190 210 200mm
+            brush_dis_offset = 75 #40 #55 # 60 # 掃把距離米的offset距離
+            if (arm== "left" and self.active_arm == arm) or(arm == "right" and self.auxiliary_arm == arm):
+                sign = 1
+                side_angle=160
+                print(f"dustpan_height: {shared_object.right[0]['3d_size']}")
+                dustpan_height = shared_object.right[0]['3d_size'][2]
+                if dustpan_height <32:
+                    dustpan_height = 32
+                print(f"dustpan_height: {dustpan_height}") 
+                print(f"longest_length: {shared_object.left[0]['longest_length']}")
+                brush_length= shared_object.left[0]['longest_length']-17 # 15 17 20 #20 #25 #18
+                print(f"brush_length: {brush_length}")
+                if angle>=0 and angle<=90:
+                    if angle <5:
+                        angle = angle + 5
+                    angle = 180 - angle
+                    temp = left_pos[0]
+                    left_pos[0] =right_pos[0] # 避免超過 motor4 angle +90~-90
+                    right_pos[0] = temp
+                # right_angle = -(180 - angle)    
+                print(f"left_pos: {left_pos}")
+                print(f"right_pos: {right_pos}")
+                
+                dustpan_dis = dustpan_length
+                dustpan_dis2= dustpan_dis + 15
+                theta = math.radians((180-angle))
+                brush_pos_close=left_pos
+                dustpan_pos_close=right_pos
+                LandR_dis = 125
+                robot_control.neck_control(0, 45)
+                while True:
+                    if dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta) >580:#[修改]
+                        if angle >=175:
+                            print("無法調整至合適角度，請重新規劃動作")
+                            break
+                        else:
+                            angle +=5
+                            theta = math.radians((180-angle))
+
+                    else:
+                        break
+                print(f"角度調整為: {angle}")
+                
+                brush_target=[brush_pos_close[0]- size[1]/4 - brush_dis_offset* math.sin(theta), brush_pos_close[1] + brush_dis_offset* math.cos(theta), brush_pos_close[2]+brush_length]
+                brush_target2=[dustpan_pos_close[0]-size[1]/4+ (dustpan_dis-LandR_dis)* math.sin(theta), dustpan_pos_close[1]-(dustpan_dis-LandR_dis)* math.cos(theta) , dustpan_pos_close[2]+brush_length] ####[修改]
+                center_target=[center_pos[0], center_pos[1], center_pos[2]+brush_length]
+                dustpan_target=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis* math.sin(theta), dustpan_pos_close[1]-dustpan_dis* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
+                dustpan_target2=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta), dustpan_pos_close[1]-dustpan_dis2* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
+                auxiliary_angle =-(180 - angle)  
+                print(f"brush_target: {brush_target}")
+                print(f"dustpan_target: {dustpan_target}")
+                print(f"brush_target2: {brush_target2}")
+                print(f"dustpan_target2: {dustpan_target2}")
+                print(f"auxiliary_angle: {auxiliary_angle}")
+            else:
+                sign = -1
+                side_angle = 30 
+                dustpan_height = shared_object.left[0]['3d_size'][2]
+                if dustpan_height <30: #修改
+                    dustpan_height = 32 
+                # elif dustpan_height >35:  
+                #     dustpan_height -=2 
+                print(f"dustpan_height: {dustpan_height}") 
+                print(f"longest_length: {shared_object.right[0]['longest_length']}")
+                brush_length= shared_object.right[0]['longest_length']-18 # 15 17 20 #20 #25
+                print(f"brush_length: {brush_length}")
+                if angle>=90:
+                    angle = 180 - angle
+                    if angle <5:
+                        angle = angle + 5
+                    temp = left_pos[0]
+                    left_pos[0] =right_pos[0]
+                    right_pos[0] = temp
+                print(f"使用右手掃桌，角度調整為: {angle}")
+                print(f"left_pos: {left_pos}")
+                print(f"right_pos: {right_pos}")
+        
+                dustpan_dis = dustpan_length
+                dustpan_dis2= dustpan_dis + 15
+                theta = math.radians((angle))
+                brush_pos_close=right_pos
+                dustpan_pos_close=left_pos
+                while True:#[修改]
+                    if dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta) >580:#[修改]
+                        if angle <=5:#[修改]
+                            print("無法調整至合適角度，請重新規劃動作")#[修改]
+                            break
+                        else:#[修改]
+                            angle -=5#[修改]
+                            theta = math.radians(angle)#[修改]
+
+                    else:#[修改]
+                        break#[修改]
+                
+                brush_target=[brush_pos_close[0]- size[1]/4 - brush_dis_offset* math.sin(theta), brush_pos_close[1] - brush_dis_offset* math.cos(theta), brush_pos_close[2]+brush_length]
+                brush_target2=[dustpan_pos_close[0]-size[1]/4 + (dustpan_dis-LandR_dis)* math.sin(theta), dustpan_pos_close[1] + (dustpan_dis-LandR_dis)* math.cos(theta) , dustpan_pos_close[2]+brush_length] ####[修改]
+                center_target=[center_pos[0], center_pos[1], center_pos[2]+brush_length]
+                dustpan_target=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis* math.sin(theta), dustpan_pos_close[1] + dustpan_dis* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
+                dustpan_target2=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta), dustpan_pos_close[1] + dustpan_dis2* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
+                auxiliary_angle =angle
+                print(f"brush_target: {brush_target}")
+                print(f"dustpan_target: {dustpan_target}")
+                print(f"brush_target2: {brush_target2}")
+                print(f"dustpan_target2: {dustpan_target2}")
+                print(f"auxiliary_angle: {auxiliary_angle}")
+        else:
+            object_pos = object.get('base_center_pos', None)
+            pick_mode = object.get('pick_mode', None)   
+        rospy.loginfo(f"[{arm}] 移動到物品 {object_name}")
+
+        if object_name == 'rice food'or  'rice food' in object_name:
+            if arm == self.active_arm:
+
+                # 待測試
+                if arm == "left":   
+                    robot_control.dual_move(brush_target[0] , brush_target[1], brush_target[2]+60, "side", angle,  dustpan_target[0], dustpan_target[1], dustpan_target[2]+20, "down", sign*10)
+                   
+                    robot_control.dual_move(brush_target[0] , brush_target[1], brush_target[2], "side", angle,  dustpan_target[0], dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle)
+                    
+                    robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2], "down", auxiliary_angle)
+                    robot_control.open_gripper(self.auxiliary_arm)
+                    robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2]-gripper_length, "down", auxiliary_angle)
+                    robot_control.close_gripper_ang(self.auxiliary_arm, 100)
+                else:
+                    robot_control.dual_move(dustpan_target[0], dustpan_target[1], dustpan_target[2]+20, "down", sign*10, brush_target[0] , brush_target[1], brush_target[2]+60, "side", angle)
+                    robot_control.dual_move(dustpan_target[0], dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle, brush_target[0] , brush_target[1], brush_target[2], "side", angle)
+                    robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2], "down", auxiliary_angle)
+                    robot_control.open_gripper(self.auxiliary_arm)
+                    robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2]-gripper_length, "down", auxiliary_angle)
+                    robot_control.close_gripper_ang(self.auxiliary_arm, 100)
+            
+            
+            if arm == self.auxiliary_arm:
+                # 待測試
+                print(f"輔助手移動")
+                
+        
+
+    def sweep_towards(self, arm:str):
         for object in shared_object.total:
-            # name = object['name']
             name = object.get('name', 'unknown')
             if name == 'rice food' or (isinstance(name, list) and 'rice food' in name):
-                # pos = object.get('base_center_pos', None)
-                size = object.get('3d_size', None)
+                # size = object.get('3d_size', None)
+                size = object['3d_size'].copy()
                 angle = object.get('angle', 0)
-                left_pos = object.get('left_base_pos', None)
-                right_pos = object.get('right_base_pos', None)
-                center_pos = object.get('base_center_pos', None)
+                left_pos = object['left_base_pos'].copy()
+                right_pos = object['right_base_pos'].copy()
+                center_pos = object['base_center_pos'].copy()
+                
                 if left_pos != None and right_pos != None and center_pos != None and size != None:
+                    # 待測試
                     if size[2]<20:
-                        size[2] = 18
-                    left_pos[2] = left_pos[2] - size[2]*2
-                    right_pos[2] = right_pos[2] - size[2]*2
-                    center_pos[2] = center_pos[2] - size[2]*2
+                        if size[2]<13:
+                            size[2] = 18
+                        size[2] = size[2]+5
+
+
+                    left_pos[2] = left_pos[2] - size[2]
+                    right_pos[2] = right_pos[2] - size[2]
+                    center_pos[2] = center_pos[2] - size[2]
+                    
+                    # if size[2]<20:
+                    #     size[2] = 18
+                    # left_pos[2] = left_pos[2] - size[2]*2
+                    # right_pos[2] = right_pos[2] - size[2]*2
+                    # center_pos[2] = center_pos[2] - size[2]*2
                     z_values = [center_pos[2], left_pos[2], right_pos[2]]
                     z_values.sort()
+                    print(f"桌面高度原始值: {center_pos[2]} mm, {left_pos[2]} mm, {right_pos[2]} mm")
                     median_z = z_values[1]  # 排序後中間的值
                    
                     center_pos[2] = left_pos[2] = right_pos[2] = median_z
-                    if center_pos[2] > -320:    
-                        center_pos[2] = left_pos[2] = right_pos[2] = -320
+                    if center_pos[2] > -323:    
+                        center_pos[2] = left_pos[2] = right_pos[2] = -323
+                        print("桌面高度過高，統一調整為 -323 mm")
                     # center_pos[2] = left_pos[2] = right_pos[2] = max(center_pos[2], left_pos[2], right_pos[2])
                     print(f"桌面統一高度為: {center_pos[2]} mm")
                 
-
         gripper_length = 23.5 #30   24    
-        brush_length = 110  # 掃把握柄中心到尾端長度為125 105mm
+        
         dustpan_length = 195  # 畚箕長度+距離offset假設為170 190 210 200mm
         brush_dis_offset = 75 #40 #55 # 60 # 掃把距離米的offset距離
-       
-        LandR_dis = 125
-        robot_control.neck_control(0, 45)
-        if self.active_arm == "left":
+        if (arm== "left" and self.active_arm == arm) or(arm == "right" and self.auxiliary_arm == arm):
             sign = 1
             side_angle=160
             print(f"dustpan_height: {shared_object.right[0]['3d_size']}")
@@ -944,7 +1070,6 @@ class RobotExecutor:
             if angle>=0 and angle<=90:
                 if angle <5:
                     angle = angle + 5
-               
                 angle = 180 - angle
                 temp = left_pos[0]
                 left_pos[0] =right_pos[0] # 避免超過 motor4 angle +90~-90
@@ -958,6 +1083,7 @@ class RobotExecutor:
             theta = math.radians((180-angle))
             brush_pos_close=left_pos
             dustpan_pos_close=right_pos
+            LandR_dis = 125
             while True:#[修改]
                 if dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta) >580:#[修改]
                     if angle >=175:#[修改]
@@ -970,9 +1096,8 @@ class RobotExecutor:
                 else:#[修改]
                     break#[修改]
             print(f"角度調整為: {angle}")
-            
             brush_target=[brush_pos_close[0]- size[1]/4 - brush_dis_offset* math.sin(theta), brush_pos_close[1] + brush_dis_offset* math.cos(theta), brush_pos_close[2]+brush_length]
-            brush_target2=[dustpan_pos_close[0]-size[1]/4+ (dustpan_dis-LandR_dis)* math.sin(theta), dustpan_pos_close[1]-(dustpan_dis-LandR_dis)* math.cos(theta) , dustpan_pos_close[2]+brush_length] ####[修改]
+            brush_target2=[dustpan_pos_close[0]-size[1]/4+ (dustpan_dis-LandR_dis)* math.sin(theta), dustpan_pos_close[1]-(dustpan_dis-LandR_dis)* math.cos(theta) , dustpan_pos_close[2]+brush_length] 
             center_target=[center_pos[0], center_pos[1], center_pos[2]+brush_length]
             dustpan_target=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis* math.sin(theta), dustpan_pos_close[1]-dustpan_dis* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
             dustpan_target2=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta), dustpan_pos_close[1]-dustpan_dis2* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
@@ -982,53 +1107,12 @@ class RobotExecutor:
             print(f"brush_target2: {brush_target2}")
             print(f"dustpan_target2: {dustpan_target2}")
             print(f"auxiliary_angle: {auxiliary_angle}")
-
-            
-            # left_target=[left_pos[0]- size[1]/4 - left_dis* math.sin(theta), left_pos[1]+left_dis* math.cos(theta), left_pos[2]+brush_length]
-            # left_target2=[right_pos[0]-size[1]/4+ (right_dis-LandR_dis)* math.sin(theta), right_pos[1]-(right_dis-LandR_dis)* math.cos(theta) , left_pos[2]+brush_length] ####[修改]
-            # center_target=[center_pos[0], center_pos[1], center_pos[2]+brush_length]
-            # right_target=[right_pos[0]- size[1]/4 + right_dis* math.sin(theta), right_pos[1]-right_dis* math.cos(theta), right_pos[2]+dustpan_height+gripper_length]
-            # right_target2=[right_pos[0]- size[1]/4 + right_dis2* math.sin(theta), right_pos[1]-right_dis2* math.cos(theta), right_pos[2]+dustpan_height+gripper_length]
-            # print(f"left_target: {left_target}")
-            # print(f"right_target: {right_target}")
-          
-            # robot_control.single_move("left", left_target[0], left_target[1], left_target[2]+60, "side", angle)
-            # robot_control.single_move("left", left_target[0], left_target[1], left_target[2], "side", angle)
-            
-            # robot_control.single_move("right", right_target[0]-50, right_target[1], right_target[2]+20, "down", 90)
-            # robot_control.single_move("right", right_target[0]-50, right_target[1], right_target[2]+20, "down", right_angle)
-            
-            # robot_control.single_move("right", right_target[0], right_target[1], right_target[2], "down", right_angle)
-            # robot_control.open_gripper("right")
-            # robot_control.single_move("right", right_target[0], right_target[1], right_target[2]-gripper_length, "down", right_angle)
-            # robot_control.close_gripper_ang("right", 100)
-            
-            # robot_control.single_move("left", left_target2[0] , left_target2[1], left_target2[2], "side", angle)#[修改]
-            # robot_control.single_move("left", left_target2[0] , left_target2[1], left_target2[2]+45, "side", angle)#[修改]
-
-
-            # robot_control.single_move("left", center_target[0], center_target[1] , center_target[2]+45, "side", angle)
-            # robot_control.single_move("left", center_target[0], center_target[1], center_target[2], "side", angle)
-           
-            # robot_control.single_move("left", left_target2[0] , left_target2[1], left_target2[2], "side", angle)#[修改]
-            # robot_control.single_move("left", left_target2[0] , left_target2[1], left_target2[2]+45, "side", angle)#[修改]
-
-            # robot_control.single_move("left", left_target[0], left_target[1] , left_target[2]+45, "side", angle)
-            # robot_control.single_move("left", 300, 130, -130 , "side", 160)
-            
-            # robot_control.single_move("right", right_target2[0], right_target2[1], right_target2[2]-gripper_length, "down", right_angle)
-            # robot_control.close_gripper("right")
-            # robot_control.single_move("right", right_target[0]-50, right_target[1], right_target[2]+20, "down", right_angle)
-            # robot_control.single_move("right", right_target[0]-50, right_target[1], right_target[2]+20, "down", 90)
-                       
         else:
             sign = -1
             side_angle = 30 
             dustpan_height = shared_object.left[0]['3d_size'][2]
             if dustpan_height <30: #修改
                 dustpan_height = 32 
-            # elif dustpan_height >35:  
-            #     dustpan_height -=2 
             print(f"dustpan_height: {dustpan_height}") 
             print(f"longest_length: {shared_object.right[0]['longest_length']}")
             brush_length= shared_object.right[0]['longest_length']-18 # 15 17 20 #20 #25
@@ -1040,111 +1124,69 @@ class RobotExecutor:
                 temp = left_pos[0]
                 left_pos[0] =right_pos[0]
                 right_pos[0] = temp
-
-
-
             print(f"使用右手掃桌，角度調整為: {angle}")
             print(f"left_pos: {left_pos}")
             print(f"right_pos: {right_pos}")
-       
+    
             dustpan_dis = dustpan_length
             dustpan_dis2= dustpan_dis + 15
             theta = math.radians((angle))
             brush_pos_close=right_pos
             dustpan_pos_close=left_pos
-            while True:#[修改]
+            auxiliary_angle =angle
+            while True:
                 if dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta) >580:#[修改]
-                    if angle <=5:#[修改]
+                    if angle <=5:
                         print("無法調整至合適角度，請重新規劃動作")#[修改]
                         break
                     else:#[修改]
-                        angle -=5#[修改]
-                        theta = math.radians(angle)#[修改]
-
-                else:#[修改]
-                    break#[修改]
-            
+                        angle -=5
+                        theta = math.radians(angle)
+                else:
+                    break
             brush_target=[brush_pos_close[0]- size[1]/4 - brush_dis_offset* math.sin(theta), brush_pos_close[1] - brush_dis_offset* math.cos(theta), brush_pos_close[2]+brush_length]
             brush_target2=[dustpan_pos_close[0]-size[1]/4 + (dustpan_dis-LandR_dis)* math.sin(theta), dustpan_pos_close[1] + (dustpan_dis-LandR_dis)* math.cos(theta) , dustpan_pos_close[2]+brush_length] ####[修改]
             center_target=[center_pos[0], center_pos[1], center_pos[2]+brush_length]
             dustpan_target=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis* math.sin(theta), dustpan_pos_close[1] + dustpan_dis* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
             dustpan_target2=[dustpan_pos_close[0]- size[1]/4 + dustpan_dis2* math.sin(theta), dustpan_pos_close[1] + dustpan_dis2* math.cos(theta), dustpan_pos_close[2]+dustpan_height+gripper_length]
-            auxiliary_angle =angle
-            print(f"brush_target: {brush_target}")
-            print(f"dustpan_target: {dustpan_target}")
-            print(f"brush_target2: {brush_target2}")
-            print(f"dustpan_target2: {dustpan_target2}")
-            print(f"auxiliary_angle: {auxiliary_angle}")
-
-        # while True:
-        #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-        #     if user_input == "1":
-        #         print("✓ 繼續執行掃地...")
-        #         break
-        #     elif user_input.lower() == "q":
-        #         print("✗ 取消動作")
-        #         exit()
-        #     else:
-        #         print("⚠ 請輸入 1 或 q")
-        
-        
-        robot_control.single_move(self.active_arm, brush_target[0], brush_target[1], brush_target[2]+60, "side", angle)
-        robot_control.single_move(self.active_arm, brush_target[0], brush_target[1], brush_target[2], "side", angle)
-        
-        # robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*-90)[修改]
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*10)# [修改]
-        
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle)
-        
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2], "down", auxiliary_angle)
-        robot_control.open_gripper(self.auxiliary_arm)
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0], dustpan_target[1], dustpan_target[2]-gripper_length, "down", auxiliary_angle)
-        robot_control.close_gripper_ang(self.auxiliary_arm, 100)
-        # robot_control.close_gripper("right")  
-        # while True:
-        #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-        #     if user_input == "1":
-        #         print("✓ 執行掃地...")
-        #         break
-        #     elif user_input.lower() == "q":
-        #         print("✗ 取消動作")
-        #         exit()
-        #     else:
-        #         print("⚠ 請輸入 1 或 q")
-        
-        # move right and down at down boundary
-        # robot_control.single_move("left", right_target[0] - dis* math.sin(theta)-3, right_target[1]+dis* math.cos(theta), left_target[2], "side", angle)
-        # robot_control.single_move("left", right_target[0] - dis* math.sin(theta)-3, right_target[1]+dis* math.cos(theta), left_target[2]+45, "side", angle)
-        robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2], "side", angle)#[修改]
-        robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2]+45, "side", angle)#[修改]
-
-
-        robot_control.single_move(self.active_arm, center_target[0], center_target[1] , center_target[2]+45, "side", angle)
-        robot_control.single_move(self.active_arm, center_target[0], center_target[1], center_target[2], "side", angle)
-        # robot_control.single_move("left", right_target[0] - dis* math.sin(theta)-3, right_target[1]+dis* math.cos(theta), left_target[2], "side", angle)
-        # robot_control.single_move("left", right_target[0] - dis* math.sin(theta)-3, right_target[1]+dis* math.cos(theta), left_target[2]+45, "side", angle)
-        robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2], "side", angle)#[修改]
-        robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2]+45, "side", angle)#[修改]
-
-        robot_control.single_move(self.active_arm, brush_target[0], brush_target[1] , brush_target[2]+45, "side", angle)
-        robot_control.single_move(self.active_arm, 300, sign*130, -130 , "side", side_angle)
-        # while True:
-        #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-        #     if user_input == "1":
-        #         print("✓ 執行抓取菶積...")
-        #         break
-        #     elif user_input.lower() == "q":
-        #         print("✗ 取消動作")
-        #         exit()
-        #     else:
-        #         print("⚠ 請輸入 1 或 q")
-        robot_control.single_move(self.auxiliary_arm, dustpan_target2[0], dustpan_target2[1], dustpan_target2[2]-gripper_length, "down", auxiliary_angle)
-        robot_control.close_gripper(self.auxiliary_arm)
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle)
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*10)# [修改]
-        robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*90)
-    def wait_for_pepper(self,arm:str):
-        time.sleep(1)
+         
+           
+        print(f"brush_target: {brush_target}")
+        print(f"dustpan_target: {dustpan_target}")
+        print(f"brush_target2: {brush_target2}")
+        print(f"dustpan_target2: {dustpan_target2}")
+        print(f"auxiliary_angle: {auxiliary_angle}")
+        if arm == self.active_arm:
+            while True:
+                user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
+                if user_input == "1":
+                    print("✓ 執行抓取菶積...")
+                    break
+                elif user_input.lower() == "q":
+                    print("✗ 取消動作")
+                    exit()
+                else:
+                    print("⚠ 請輸入 1 或 q")
+            robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2], "side", angle)
+            robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2]+45, "side", angle) #抬手
+            robot_control.single_move(self.active_arm, center_target[0], center_target[1] , center_target[2]+45, "side", angle)
+            robot_control.single_move(self.active_arm, center_target[0], center_target[1], center_target[2], "side", angle)
+            robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2], "side", angle)
+            robot_control.single_move(self.active_arm, brush_target2[0] , brush_target2[1], brush_target2[2]+45, "side", angle)
+            robot_control.single_move(self.active_arm, brush_target[0], brush_target[1] , brush_target[2]+45, "side", angle)
+            robot_control.single_move(self.active_arm, 300, sign*130, -130 , "side", side_angle)
+            
+            robot_control.single_move(self.auxiliary_arm, dustpan_target2[0], dustpan_target2[1], dustpan_target2[2]-gripper_length, "down", auxiliary_angle)
+            robot_control.open_gripper(self.auxiliary_arm)
+            robot_control.close_gripper(self.auxiliary_arm)
+            robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", auxiliary_angle)
+            robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*10)
+            robot_control.single_move(self.auxiliary_arm, dustpan_target[0]-50, dustpan_target[1], dustpan_target[2]+20, "down", sign*90)
+        else:
+            print("輔助手執行")   
+    
+    def wait(self,arm:str):
+        print(f"[{arm}] 等待中...")
     def sprinkle_pepper(self, arm: str):
         # robot_control.capture_publisher("close")
         global shared_object
@@ -1160,31 +1202,25 @@ class RobotExecutor:
             # name = object['name']
             name = object.get('name', 'unknown')
             if 'sandwich' in name:
-                size = object.get('3d_size', None)
-                
+                size = object.get('3d_size', None)      
                 left_pos = object.get('left_base_pos', None)
                 right_pos = object.get('right_base_pos', None)
                 center_pos = object.get('base_center_pos', None)
                 print(f"找到三明治，中心位置: {center_pos}，左位置: {left_pos}, 右位置： {right_pos}")
                 print(f"三明治尺寸為: {size}")
                 found_sandwich = True
-            
             if "pepper shaker" in name:
                 pepper_size = object.get('3d_size', None)
                 print(f"胡椒粉尺寸為: {pepper_size}")
             else:
                 pepper_size = [70,70, 110]
-        
         if found_sandwich == False:
             print("未找到三明治，無法執行撒胡椒粉動作")
             return
-        
-        
         offset_height = 80
         move_dis = 50
         pepper_height = max(pepper_size)/2
         print(f"胡椒粉高度為: {pepper_height}")
-        
         height_pos = [center_pos[0]+pepper_height*math.sin(yaw_angle), center_pos[1]+sign*pepper_height*math.cos(yaw_angle), center_pos[2]+offset_height+move_dis]
         print(f"灑胡椒粉高處位置: {height_pos}")
         
@@ -1193,17 +1229,11 @@ class RobotExecutor:
 
         # easy demo: move arm to pepper position and sprinkle
         robot_control.single_move(arm, center_pos[0], center_pos[1], center_pos[2]+offset_height+move_dis, "side_reversal", 0)
-        
         robot_control.single_move(arm, height_pos[0], height_pos[1] , height_pos[2] , "side_reversal", 90) # 向下到的角度
-        
         robot_control.single_move(arm, low_pos[0], low_pos[1] , low_pos[2], "side_reversal", 150)
-        
-        
         robot_control.single_move(arm, center_pos[0]-100, center_pos[1], center_pos[2]+offset_height+move_dis, "side_reversal", 30)
-        
         robot_control.single_arm_initial_position(arm)
-        robot_control.single_arm_go_away(arm)
-        
+        robot_control.single_arm_go_away(arm)      
     def close_sandwich(self, arm: str):
         global shared_object
         if arm == "left":
@@ -1277,8 +1307,8 @@ class RobotExecutor:
         
         robot_control.single_arm_initial_position(arm)
 
-    def place(self, object_index: int, mode: str, angle: float, arm: str):
-        print(f"[{arm}] 放置物品 {object_index}，模式: {mode}，角度: {angle}")
+    def place(self, object_name: str, mode: str, angle: float, arm: str):
+        print(f"[{arm}] 放置物品 {object_name}，模式: {mode}，角度: {angle}")
         # robot_control.neck_control(0, 76)
         find_object = False
         if arm == "left":
@@ -1295,32 +1325,27 @@ class RobotExecutor:
                 find_object = True
             else:
                 object = None
+       
         if object == None:
-                if object_index < len(shared_object.total):
+            for obj in shared_object.total:
+                if object_name in obj['name']:
                     find_object = True
-                    object = shared_object.total[object_index]
-                    
+                    object = obj
+                    break        
         if find_object == False:
             rospy.loginfo(f"未找到物品 {object_name} 的資訊，無法執行抓取")
             return     
-        # if arm == "left":
-        #     object = shared_object.left[0]
-        # elif arm == "right":
-        #     object = shared_object.right[0]
-        # if object == None:
-        #     object = shared_object.total[0]
         object_pos = object.get('base_center_pos', None)
         pick_mode = object.get('pick_mode', None)
         size = object.get('3d_size', None)
         angle = object.get('angle', 0)
         object_name = object.get('name', 'unknown')
         if object_name == 'dustpan tool':
-                # size[2] = size[2] *2 # *2 *1 
                 if size[2]>32:
                     size[2] = 31.5-15 
                 print(f"畚箕高度為: {size[2]}mm")
         if object_name == 'brush tool' or object_name == 'dustpan tool':
-            robot_control.neck_control(0, 76)
+            robot_control.neck_control(0, 70)
         if "pepper shaker" in object_name:
             robot_control.neck_control(0, 45)
             if arm == "right":
@@ -1354,26 +1379,26 @@ class RobotExecutor:
             if "pepper shaker" in step.object_name or  "sliced toast" in step.object_name:
                 shared_object.record_pick(step.object_name, step.arm.value)
         elif step.action_type == ActionType.SWEEP:
-            func = self.action_map["sweep_the_table"]
-            func()
+            func = self.action_map["sweep_towards"]
+            func(step.arm.value)
         elif step.action_type == ActionType.PLACE:
             func = self.action_map["place"]
-            func(step.object_index, step.mode.value, step.angle, step.arm.value)
+            func(step.object_name, step.mode.value, step.angle, step.arm.value)
 
-            shared_object.record_place(step.object_index, step.arm.value)
+            shared_object.record_place(step.object_name, step.arm.value)
         elif step.action_type == ActionType.SPRINKLE_PEPPER:
             func = self.action_map["sprinkle_pepper"]
             func(step.arm.value)
         elif step.action_type == ActionType.CLOSE_SANDWICH:
             func = self.action_map["close_sandwich"]
             func(step.arm.value)
-            for idx, object in enumerate(shared_object.total):
-                name = object['name']
-                if name == 'sliced toast' or (isinstance(name, list) and 'sliced toast' in name):
-                    shared_object.record_place(idx, step.arm.value)
-        elif step.action_type == ActionType.WAIT_FOR_PEPPER:
-            func = self.action_map["wait_for_pepper"]
+            shared_object.record_place('sliced toast', step.arm.value)
+        elif step.action_type == ActionType.WAIT:
+            func = self.action_map["wait"]
             func(step.arm.value)
+        elif step.action_type == ActionType.MOVE:
+            func = self.action_map["move_to_object"]
+            func(step.arm.value, step.object_name)
         
         else:
             raise ValueError(f"未知的動作類型: {step.action_type}")
@@ -1413,17 +1438,7 @@ class RobotExecutor:
             print(f"\n步驟 {step.step_id} [{step.arm.value}]: {step.action_type.value}")
 
             self.execute_step(step)
-            # while True:
-            #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-            #     if user_input == "1":
-            #         print("✓ 繼續執行...")
-            #         self.execute_step(step)
-            #         break
-            #     elif user_input.lower() == "q":
-            #         print("✗ 取消動作")
-            #         exit()
-            #     else:
-            #         print("⚠ 請輸入 1 或 q")
+       
 
     def execute_plan_together(self, robot_plan: RobotPlan):
         
@@ -1441,34 +1456,28 @@ class RobotExecutor:
         for step in robot_plan.right_arm:
             all_steps.append(step)
         all_steps.sort(key=lambda s: s.step_id)
+      
         
-        # 過濾重複的 SWEEP
-        final_steps = []
-        seen_sweep_ids = set()
-        for step in all_steps:
-            if step.action_type == ActionType.SWEEP:
-                if step.step_id in seen_sweep_ids:
-                    continue
-                seen_sweep_ids.add(step.step_id)
-            final_steps.append(step)
-        
-        all_steps = final_steps
-        
+        found_eye_in_hand = False
         # 執行步驟（支援並行）
+        for step in all_steps:
+            if step.action_type == ActionType.EYE_IN_HAND:
+                found_eye_in_hand = True
+
         i = 0
         while i < len(all_steps):
             current_step = all_steps[i]
-            
             # 檢查下一步是否可以並行執行
             if i + 1 < len(all_steps):
                 next_step = all_steps[i + 1]
-                
                 # 條件：連續兩步都是 pick 或 place，且使用不同手臂
                 if self._can_execute_parallel(current_step, next_step):
                     print(f"\n🔄 並行執行步驟 {current_step.step_id} 和 {next_step.step_id}")
                     print(f"   [{current_step.arm.value}]: {current_step.action_type.value}")
                     print(f"   [{next_step.arm.value}]: {next_step.action_type.value}")
-                    # time.sleep(15) #等待相機辨識完全
+                    if found_eye_in_hand and current_step.action_type == ActionType.PICK:
+                        print("   存在 EYE_IN_HAND 動作，暫停 15 秒等待相機辨識完成")
+                        time.sleep(15) #等待相機辨識完全
                     # 建立兩個執行緒
                     thread1 = threading.Thread(
                         target=self.execute_step, 
@@ -1478,23 +1487,19 @@ class RobotExecutor:
                         target=self.execute_step, 
                         args=(next_step,)
                     )
-                    
                     # 同時啟動
                     thread1.start()
                     thread2.start()
-                    
                     # 等待兩個都完成
                     thread1.join()
                     thread2.join()
                     
                     print(f"✓ 步驟 {current_step.step_id} 和 {next_step.step_id} 完成")
-                    
                     # 跳過下一步（因為已經執行了）
                     i += 2
                 else:
                     # 不能並行，單獨執行當前步驟
                     print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
-                    
                     self.execute_step(current_step)
                     i += 1
             else:
@@ -1502,83 +1507,7 @@ class RobotExecutor:
                 print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
                 self.execute_step(current_step)
                 i += 1
-    # def execute_plan_together(self, robot_plan: RobotPlan):
-        
-    #     """
-    #     執行完整計畫
-    #     自動偵測連續的 pick/place 動作並並行執行（如果是不同手臂）
-    #     """
-    #     print(f"\n開始執行任務: {robot_plan.task_description}")
-    #     print("=" * 60)
-        
-    #     # 合併並排序所有步驟
-    #     all_steps = []
-    #     for step in robot_plan.left_arm:
-    #         all_steps.append(step)
-    #     for step in robot_plan.right_arm:
-    #         all_steps.append(step)
-    #     all_steps.sort(key=lambda s: s.step_id)
-        
-    #     # 過濾重複的 SWEEP
-    #     final_steps = []
-    #     seen_sweep_ids = set()
-    #     for step in all_steps:
-    #         if step.action_type == ActionType.SWEEP:
-    #             if step.step_id in seen_sweep_ids:
-    #                 continue
-    #             seen_sweep_ids.add(step.step_id)
-    #         final_steps.append(step)
-        
-    #     all_steps = final_steps
-        
-    #     # 執行步驟（支援並行）
-    #     i = 0
-    #     while i < len(all_steps):
-    #         current_step = all_steps[i]
-            
-    #         # 檢查下一步是否可以並行執行
-    #         if i + 1 < len(all_steps):
-    #             next_step = all_steps[i + 1]
-                
-    #             # 條件：連續兩步都是 pick 或 place，且使用不同手臂
-    #             if self._can_execute_parallel(current_step, next_step):
-    #                 print(f"\n🔄 並行執行步驟 {current_step.step_id} 和 {next_step.step_id}")
-    #                 print(f"   [{current_step.arm.value}]: {current_step.action_type.value}")
-    #                 print(f"   [{next_step.arm.value}]: {next_step.action_type.value}")
-    #                 time.sleep(15) #等待相機辨識完全
-    #                 # 建立兩個執行緒
-    #                 thread1 = threading.Thread(
-    #                     target=self.execute_step, 
-    #                     args=(current_step,)
-    #                 )
-    #                 thread2 = threading.Thread(
-    #                     target=self.execute_step, 
-    #                     args=(next_step,)
-    #                 )
-                    
-    #                 # 同時啟動
-    #                 thread1.start()
-    #                 thread2.start()
-                    
-    #                 # 等待兩個都完成
-    #                 thread1.join()
-    #                 thread2.join()
-                    
-    #                 print(f"✓ 步驟 {current_step.step_id} 和 {next_step.step_id} 完成")
-                    
-    #                 # 跳過下一步（因為已經執行了）
-    #                 i += 2
-    #             else:
-    #                 # 不能並行，單獨執行當前步驟
-    #                 print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
-                    
-    #                 self.execute_step(current_step)
-    #                 i += 1
-    #         else:
-    #             # 最後一步，直接執行
-    #             print(f"\n步驟 {current_step.step_id} [{current_step.arm.value}]: {current_step.action_type.value}")
-    #             self.execute_step(current_step)
-    #             i += 1
+    
 
     def _can_execute_parallel(self, step1: ActionStep, step2: ActionStep) -> bool:
         """
@@ -1592,384 +1521,95 @@ class RobotExecutor:
         # 檢查動作類型是否相同
         if step1.action_type != step2.action_type:
             return False
-        
         # 檢查是否為 PICK 或 PLACE
         if step1.action_type not in {ActionType.PICK, ActionType.PLACE}:
             return False
-        
         # 檢查是否使用不同手臂
         if step1.arm == step2.arm:
             return False
-        
         return True
 
 
 # ==================================== Task planning ====================================
 
-
 def generate_task_plan():
-    global GPT_planner
-    while True:
-        robot_plan = GPT_planner.task_planning()    
+    global GPT_planner, robot_status
+
+    max_retries = 5
+    robot_plan = None
+    passed = False
+
+    robot_plan = GPT_planner.task_planning()    
+    for attempt in range(max_retries):
+        print(f"\n[{'='*20} 第 {attempt + 1} 次嘗試生成計畫 {'='*20}]")
+        
+        # 1. 呼叫 LLM 產生計畫
+        robot_plan = GPT_planner.task_planning()
         print("生成的計畫:")
-        # print(json.dumps(robot_plan.dict(), indent=2, ensure_ascii=False))
-        print(json.dumps(robot_plan.model_dump(), indent=2, ensure_ascii=False))
+        print(json.dumps(robot_plan.model_dump(), indent=2, ensure_ascii=False))  # 注意：Pydantic V2 建議用 model_dump() 取代 dict()
+        
         # 2. 靜態驗證
         validator = PlanValidator()
-        passed, errors, penalty = validator.validate_plan(robot_plan)
-        # validator.print_report()
-        passed = True
-        if not passed:
-            print(f"⚠️  計畫未通過驗證（扣分: {penalty}），需要重新規劃")
-        else:
-            print("✅  計畫通過驗證")
-            break
-
-        # 可以選擇：
-        # - 重新呼叫 GPT 並附上錯誤訊息
-        # - 使用規則自動修正
-        return False
-    return robot_plan
-
-def test(arm):
-    global shared_object
-    if arm == "left":
-        sign = 1   
-    elif arm == "right":
-        sign = -1
-    for object in shared_object.total:
-        # name = object['name']
-        name = object.get('name', 'unknown')
-        if name == 'sandwich' or (isinstance(name, list) and 'sandwich' in name):
-            size = object.get('3d_size', None)
-            left_pos = object.get('left_base_pos', None)
-            right_pos = object.get('right_base_pos', None)
-            center_pos = object.get('base_center_pos', None)
-            angle = object.get('angle', 0)
-            print(f"找到三明治，中心位置: {center_pos}，左位置: {left_pos}, 右位置： {right_pos}")
-            print(f"三明治尺寸為: {size}")
-        else:
-            print("沒有找到三明治")
-    toast_height = 150
-    offset_height = 40
-    gripper_length = 23.5
-    dis_to_move = gripper_length+ max(size)
-    # dis_to_move = offset_height + gripper_length
-    # 危險區域角度
-    if angle >=90:
-        if arm == "right":
-            angle = 10
-            theta =  math.radians(10)
-        else:
-            theta =  math.radians(180 - angle)
-    else:
-        if arm == "left":
-            angle = 170
-            theta =  math.radians(10)
-        else: 
-            theta = math.radians(angle)
-    
-    center_pos[0] -= 15 
-    thickness = max(size)/2 
-    place_pos = [center_pos[0]- thickness * math.sin(theta), center_pos[1] + sign * thickness * math.cos(theta), center_pos[2]]
-
-    # place_pos = [center_pos[0]- thickness * math.cos(math.radians(theta)), center_pos[1] + sign * thickness * math.sin(math.radians(theta)), center_pos[2]]
-    print(f"place_pos : {place_pos}")
-    
-    leave_pos = [place_pos[0] - dis_to_move * math.sin(theta), place_pos[1]+sign * dis_to_move * math.cos(theta), place_pos[2]+offset_height-5]
-    print(f"離開位置: {leave_pos}")
-    
-
-    robot_control.single_move(arm, place_pos[0], place_pos[1], place_pos[2]+toast_height, "side", angle)
-    
-    robot_control.single_move(arm, place_pos[0], place_pos[1], place_pos[2]+toast_height, "side_down", angle)
-
-    # robot_control.single_move(arm, place_pos[0], place_pos[1], place_pos[2]+offset_height, "side_down", angle)
-    while True:
-        user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-        if user_input == "1":
-            print("✓ 繼續執行...")
-            
-            break 
-        elif user_input.lower() == "q":
-            print("✗ 取消動作")
-            exit()
-        else:
-            print("⚠ 請輸入 1 或 q")
-    robot_control.single_move(arm, place_pos[0], place_pos[1], place_pos[2]+offset_height, "side_tilt", angle)
-    while True:
-        user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-        if user_input == "1":
-            print("✓ 繼續執行...")
-            
-            break 
-        elif user_input.lower() == "q":
-            print("✗ 取消動作")
-            exit()
-        else:
-            print("⚠ 請輸入 1 或 q")
-
-    robot_control.close_gripper_ang(arm, 100)
-
-    robot_control.single_move(arm, leave_pos[0], leave_pos[1], leave_pos[2], "side_tilt", angle)
-
-    
-    robot_control.single_move(arm, leave_pos[0], leave_pos[1], leave_pos[2], "side", angle)
-
-    robot_control.single_arm_initial_position(arm)
-    # while True:
-    #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #     if user_input == "1":
-    #         print("✓ 繼續執行...")
-            
-    #         break 
-    #     elif user_input.lower() == "q":
-    #         print("✗ 取消動作")
-    #         exit()
-    #     else:
-    #         print("⚠ 請輸入 1 或 q")
-    robot_control.single_arm_initial_position(arm)
-
-if __name__ == '__main__': 
-    
-    ros_sub_init()
-    executor = RobotExecutor()
-    robot_control.neck_control(0, 45)# 40
-    robot_control.neck_control(0, 0)# 40
-    # 1. 手臂測試
-    time.sleep(2)
-    
-    # robot_control.close_gripper_ang("left", 250)
-    draw_back_hands()
-    print("開始測試...")
-    
-    shared_object.head_camera_ready = True
-    # get_pepper_toast_info()
-    # robot_control.single_arm_place(533.2106323242188, 90.76116180419922, -228.76498413085938, "side", [106.45234768939427, 55.47570784863168, 86.80486946174278], 150, "left")
-    # robot_control.single_move("left", 514.9300537109375, 200, -120 , "side", 30)
-    
-    # GPT_planner.task_description_prompt = "請規劃一個機器人完成夾取胡椒粉與土司動作"
-    # get_pepper_info()
-    # robot_control.single_arm_initial_position("left")
-    # draw_back_hands()
-    # get_pepper_info()
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-                
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # robot_control.single_move("left", 525.8709716796875, 108.58979034423828, -134.0618896484375 , "side", 150)
-    # # get_toast_info()
-    # update_camera_prompt()
-    # GPT_planner.robot_status_prompt = (
-    #     "機器人狀態: \n"
-    #     f"left arm: holding pepper shaker\n"
-    #     f"right arm: holding sliced toast\n"
-    # )
-
-    # get_pepper_info()
-    # get_toast_info()
-    # update_camera_prompt()
-    # GPT_planner.task_description_prompt =  "請規劃一個機器人完成準備三明治動作"
-    # while True:
-    #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #     if user_input == "1":
-    #         print("✓ 繼續執行...")
-            
-    #         break 
-    #     elif user_input.lower() == "q":
-    #         print("✗ 取消動作")
-    #         exit()
-    #     else:
-    #         print("⚠ 請輸入 1 或 q")
-    # robot_control.close_gripper_ang("right", 250)
-    # while True:
-    #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #     if user_input == "1":
-    #         print("✓ 繼續執行...")
-            
-    #         break 
-    #     elif user_input.lower() == "q":
-    #         print("✗ 取消動作")
-    #         exit()
-    #     else:
-    #         print("⚠ 請輸入 1 或 q")
-    # get_sandwich()
-    # # update_camera_prompt()
-    # while True:
-    #     user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #     if user_input == "1":
-    #         print("✓ 繼續執行...")
-            
-    #         break 
-    #     elif user_input.lower() == "q":
-    #         print("✗ 取消動作")
-    #         exit()
-    #     else:
-    #         print("⚠ 請輸入 1 或 q")
-    # test("right")
-
-    # GPT_planner.task_description_prompt = "請規劃一個機器人完成夾取胡椒粉與土司動作"
-    # # get_toast_info()
-    # get_pepper_toast_info()
-    # update_camera_prompt()
-    # robot_plan = generate_task_plan()
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-                
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # if robot_plan:
+        passed, errors, penalty = validator.validate_plan(
+            robot_plan, 
+            robot_status.left_arm_status, 
+            robot_status.right_arm_status
+        )
+        validator.print_report()
         
-    #     executor.execute_plan_together(robot_plan)
-    rospy.spin()
-    # GPT_planner.task_description_prompt =  "請規劃一個機器人完成三明治動作"
-    # get_sandwich_toast_info()
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
+        # 3. 判斷是否通過
+        if passed:
+            print("✅ 計畫完美通過驗證！")
+            break
+        else:
+            print(f"⚠️ 計畫未通過驗證（扣分: {penalty}）。")
+            if attempt < max_retries - 1:
+                print("🔄 將錯誤訊息回傳給 LLM，要求重新規劃...")
                 
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # robot_control.single_arm_initial_position("right")
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-                
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # robot_control.single_move("right", 605, -143, -159 , "side", 28) #基座標: [664.216796875, -87.83808135986328, -159.85650634765625]
-# [INFO] [1772436136.193692]:   左端點: [723.1905517578125, -31.975921630859375, -170.44708251953125]
-# [INFO] [1772436136.194454]:   右端點: [605.2430419921875, -143.7002410888672, -149.265869140625]
-
-# [570.5097118543129, -90.14460193937997, -139.483154296875]
-# [INFO] [1772962166.688462]:   左端點: [600.3674389050941, -37.74929249113778, -139.483154296875]
-# [INFO] [1772962166.688951]:   右端點: [540.6519237683754, -142.53991901701667, -139.483154296875]
-    # update_search_phrase(["egg sandwich", "sliced toast"]) 
-    # update_search_phrase([ "sliced toast"])
-
-    # # update_search_phrase(["egg sandwich", "sliced toast"]) 
-    # robot_control.capture_publisher("head")
-    # print("================= 獲取環境資訊完成 =================")
-    # show_info(shared_object.total)
-    # update_camera_prompt()
-    # get_pepper_info()
-    # update_camera_prompt()
+                # --- 將 Validator 的錯誤打包成字串，餵給 Planner ---
+                error_msgs = "\n".join([
+                    f"- [{e.error_type}] 步驟 {e.step_id} ({e.arm} arm): {e.description}" 
+                    for e in errors
+                ])
+                GPT_planner.error_feedback_prompt = (
+                    "你上次生成的計畫有以下致命錯誤，請重新思考並修正：\n" + error_msgs
+                )
+            else:
+                print("❌ 已達最大重試次數，規劃失敗，請手動介入。")
+                return False
+        
+    if passed and robot_plan:
+        print("\n開始執行計畫...")
+        plan_print(robot_plan)
+        return robot_plan
+def plan_print(robot_plan: RobotPlan):
+    """執行計畫前的打印，展示所有步驟細節"""
+    # 根據 step_id 順序執行
+    all_steps = []
+    for step in robot_plan.left_arm:
+        all_steps.append((step, "left"))
+    for step in robot_plan.right_arm:
+        all_steps.append((step, "right"))
     
-    # GPT_planner.task_description_prompt = "請規劃一個機器人抓取胡椒粉罐動作"
-    # robot_plan = generate_task_plan()
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-                
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    # if robot_plan:
+    # 按 step_id 排序（如果需要嚴格順序）
+    all_steps.sort(key=lambda x: x[0].step_id)
+    
+    for step, arm in all_steps:
+        func_call = step.to_function_call()
+        print(f"[{arm}] 執行: {func_call}")
 
-    #     executor.execute_plan(robot_plan)
-    # else:
-    #     print("計畫生成失敗，無法執行")
-    # while True:
-    #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-    #         if user_input == "1":
-    #             print("✓ 繼續執行...")
-    #             # time.sleep(3)
-    #             get_pepper_info()
-    #             # robot_control.single_move("left", 300, 130, -130 , "side", 160)
-    #             # robot_control.open_gripper("left")
-    #             # robot_control.single_move("left", 400,  115, -300, "down", 10) #-350
-    #             # robot_control.close_gripper("left")
-    #             # robot_control.single_move("left", 250, 130, -250 , "down", -90) #-350
-    #             # robot_control.single_move("right", 480, -350, -300 , "side", 50) #-350
-    #             # robot_control.close_gripper("right")
-    #             # robot_control.capture_publisher("right")
-    #             # robot_control.single_move("left", 660, 150, -100 , "side_reversal", 0)
-    #             # robot_control.single_move("right", 300, -130, -220 , "side", 30)
-    #             # robot_control.single_move("right", 300, -190, -200 , "down", 90)
-    #             break 
-    #         elif user_input.lower() == "q":
-    #             print("✗ 取消動作")
-    #             exit()
-    #         else:
-    #             print("⚠ 請輸入 1 或 q")
-    
-    
+
 
  
-
-   
-# if __name__ == '__main__': #1.菶機不夠後退   5. 菶積在抓一次會不平 
-#     ros_sub_init()
-#     executor = RobotExecutor()
-#     # 1. 手臂測試
-#     time.sleep(2)
+# 3. 測試清掃任務(待測試的部分)
+if __name__ == '__main__': 
+    ros_sub_init()
+    executor = RobotExecutor()
+    # robot_control.neck_control(0, 45)# 40
+    # robot_control.neck_control(0, 0)# 40
+    # 1. 手臂測試
+    time.sleep(2)
+    # draw_back_hands()
+    print("開始測試...")
+    shared_object.head_camera_ready = True
     
-#     print("開始測試...")
-#     # update_search_phrase(["rice food"])
-#     # shared_object.head_camera_ready = True
-    
-    
-#     # # # 7. 完整計畫測試
-#     # get_env_info()
-   
-#     # update_camera_prompt()
-#     # robot_plan = generate_task_plan()
-#     # while True:
-#     #         user_input = input("輸入 1 繼續下一步動作，或按 q 退出: ")
-#     #         if user_input == "1":
-#     #             print("✓ 繼續執行...")
-                
-#     #             break 
-#     #         elif user_input.lower() == "q":
-#     #             print("✗ 取消動作")
-#     #             exit()
-#     #         else:
-#     #             print("⚠ 請輸入 1 或 q")
-#     # if robot_plan:
-
-#     #     executor.execute_plan(robot_plan)
-
-#     rospy.spin()
-
-# 做早餐任務測試流程：
-
-# update task_name & type(pick pepper shaker)-> get_pepper_info ->search_pepper_shaker -> update prompt -> gpt planning -> execute plan
-# update task_name & type（prepare sandwich) -> get_sandwich_toast_info ->search sandwich && toast(bread) -> update prompt(手上已有胡椒粉) -> gpt planning -> execute plan
-
-# plan_validator 開始 (掃地右手有時會忘記放置)  （更改三明治檢查動作）
-
-#  灑胡椒粉 -> 蓋土司
-
-# 整合測試（禮拜六 日 ....） 建環境
-
-
-
-
-# 動作規劃更動

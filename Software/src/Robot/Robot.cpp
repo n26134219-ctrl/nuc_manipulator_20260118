@@ -64,7 +64,7 @@ void Robot::Initialize()
         
     });
     std::thread neck2Thread([&]() {
-        neck->SetMotorAngle(1, 76.0);
+        neck->SetMotorAngle(1, 70.0);
         // neck->SetMotorAngle(1, 0.0);
         
     });
@@ -442,8 +442,8 @@ void Robot::commandCallback(const std_msgs::String::ConstPtr& msg)
             ROS_INFO("open_gripper: arm=%s", arm.c_str());
             if (arm == "both") {
                 std_msgs::String::Ptr msg(new std_msgs::String());
-                msg->data = "我的雙手要放手了喔～";
-                VoiceCommandCallback(msg);
+                // msg->data = "我的雙手要放手了喔～";
+                // VoiceCommandCallback(msg);
                 std::thread leftThread([&]() {
                     openGripper("left");
                 });
@@ -456,12 +456,12 @@ void Robot::commandCallback(const std_msgs::String::ConstPtr& msg)
             } else {
                 if (arm == "left") {
                     std_msgs::String::Ptr msg(new std_msgs::String());
-                    msg->data = "我的左手要放手了喔～";
-                    VoiceCommandCallback(msg);
+                    // msg->data = "我的左手要放手了喔～";
+                    // VoiceCommandCallback(msg);
                 } else if (arm == "right") {
                     std_msgs::String::Ptr msg(new std_msgs::String());
-                    msg->data = "我的右手要放手了喔～";
-                    VoiceCommandCallback(msg);
+                    // msg->data = "我的右手要放手了喔～";
+                    // VoiceCommandCallback(msg);
                 }
                 std::thread gripperThread([&]() {
                     openGripper(arm);

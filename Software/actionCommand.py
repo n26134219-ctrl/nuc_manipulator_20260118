@@ -165,7 +165,7 @@ class CommandPublisher:
         robot_state = False
         self.pub.publish(msg)
     def camera_body_search(self):
-        self.neck_control(0, 76)
+        self.neck_control(0, 70)
         time.sleep(2)
         self.capture_publisher("head")
     def camera_table_search(self):
@@ -418,7 +418,7 @@ class CommandPublisher:
     def initial_position(self):
     
         self.dual_move( 420, 120, -130, "side", 150, 420, -120, -130, "side", 30)
-        self.neck_control(0, 76)
+        self.neck_control(0, 70)
         
     def single_arm_initial_position(self, arm):
         if arm == "left":
